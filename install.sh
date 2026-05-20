@@ -62,25 +62,12 @@ fi
 
 echo "✓ PI found: $(which pi)"
 
-# Check for npm (preferred install method)
-if command -v npm &> /dev/null; then
-  echo ""
-  echo "Installing via npm..."
-  npm install -g pi-desktop
-  echo ""
-  echo "✓ PI Desktop installed successfully!"
-  echo ""
-  echo "Run: pi-desktop"
-  echo ""
-  exit 0
-fi
-
-# Fallback: download AppImage (Linux only)
+# Download the latest release artifact for this platform.
+# PI Desktop is distributed as a packaged binary, not via npm — see MEMORY.md.
 if [ "$PLATFORM" = "linux" ]; then
   echo ""
-  echo "npm not found. Downloading AppImage..."
+  echo "Downloading AppImage..."
 
-  # Get latest release URL
   DOWNLOAD_URL="https://github.com/$REPO/releases/latest/download/PI-Desktop-${PLATFORM}-${ARCH_NAME}.AppImage"
 
   mkdir -p "$INSTALL_DIR"
@@ -90,7 +77,6 @@ if [ "$PLATFORM" = "linux" ]; then
   curl -fsSL "$DOWNLOAD_URL" -o "$OUTPUT"
   chmod +x "$OUTPUT"
 
-  # Add to PATH if needed
   if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
     echo ""
     echo "Add to your PATH:"
@@ -106,9 +92,12 @@ if [ "$PLATFORM" = "linux" ]; then
   echo ""
 else
   echo ""
-  echo "Error: npm is required for installation on $PLATFORM."
-  echo "Please install Node.js first: https://nodejs.org"
+  echo "Automated install is currently Linux-only."
+  echo "Download the installer for $PLATFORM from: https://github.com/$REPO/releases"
   echo ""
-  echo "Or download manually from: https://github.com/$REPO/releases"
+  echo "Or build from source:"
+  echo "  git clone https://github.com/$REPO.git"
+  echo "  cd pi-desktop-gui"
+  echo "  npm install && npm run package:$PLATFORM"
   exit 1
 fi

@@ -36,7 +36,8 @@ if (args.includes('--help') || args.includes('-h')) {
     pi-desktop .                # Launch with current directory
 
   Install:
-    npm install -g pi-desktop   # Install globally
+    See https://github.com/FaqFirebase/pi-desktop-gui for releases
+    and build-from-source instructions.
 
   The app requires PI to be installed:
     curl -fsSL https://pi.dev/install.sh | sh
