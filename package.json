@@ -1,6 +1,6 @@
 {
   "name": "pi-desktop",
-  "version": "0.0.1",
+  "version": "0.0.1-alpha",
   "description": "Desktop GUI frontend for the PI coding agent",
   "main": "out/main/index.js",
   "author": "PI Desktop GUI Contributors",
@@ -31,9 +31,6 @@
     "package": "electron-vite build && electron-builder",
     "package:linux": "electron-vite build && electron-builder --linux",
     "package:linux:appimage": "electron-vite build && electron-builder --linux AppImage",
-    "package:linux:deb": "electron-vite build && electron-builder --linux deb",
-    "package:linux:rpm": "electron-vite build && electron-builder --linux rpm",
-    "package:linux:snap": "electron-vite build && electron-builder --linux snap",
     "package:linux:all": "electron-vite build && electron-builder --linux",
     "package:mac": "electron-vite build && electron-builder --mac",
     "package:mac:dmg": "electron-vite build && electron-builder --mac dmg",
@@ -64,7 +61,7 @@
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.5",
     "@vitejs/plugin-react": "^4.5.2",
-    "electron": "^36.3.1",
+    "electron": "^39.8.10",
     "electron-builder": "^26.0.12",
     "electron-vite": "^3.1.0",
     "eslint": "^9.27.0",
@@ -86,7 +83,9 @@
       {
         "from": "resources/",
         "to": "resources/",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "directories": {
@@ -94,9 +93,7 @@
     },
     "linux": {
       "target": [
-        "AppImage",
-        "deb",
-        "rpm"
+        "AppImage"
       ],
       "category": "Development",
       "icon": "resources/icons",
@@ -133,32 +130,6 @@
     },
     "appImage": {
       "license": "LICENSE"
-    },
-    "deb": {
-      "depends": [
-        "libgtk-3-0",
-        "libnotify4",
-        "libnss3",
-        "libxss1",
-        "libxtst6",
-        "xdg-utils",
-        "libatspi2.0-0",
-        "libuuid1",
-        "libsecret-1-0"
-      ],
-      "priority": "optional"
-    },
-    "rpm": {
-      "depends": [
-        "gtk3",
-        "libnotify",
-        "nss",
-        "libXScrnSaver",
-        "libXtst",
-        "xdg-utils",
-        "at-spi2-atk",
-        "libuuid"
-      ]
     }
   }
 }

@@ -2,7 +2,8 @@
 
 A production-ready Electron desktop application that provides a modern GUI frontend for the [PI coding agent](https://pi.dev).
 
-![Version](https://img.shields.io/badge/version-0.0.1-blue)
+![Version](https://img.shields.io/badge/version-0.0.1--alpha-orange)
+![Status](https://img.shields.io/badge/status-alpha-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)
 
@@ -51,8 +52,6 @@ Download from [GitHub Releases](https://github.com/pi-desktop-gui/pi-desktop-gui
 | Platform | Format | Download |
 |----------|--------|----------|
 | Linux | AppImage | `PI-Desktop-linux-x64.AppImage` |
-| Linux | Debian | `PI-Desktop-linux-x64.deb` |
-| Linux | RPM | `PI-Desktop-linux-x64.rpm` |
 | macOS | DMG | `PI-Desktop-mac-x64.dmg` (Intel) |
 | macOS | DMG | `PI-Desktop-mac-arm64.dmg` (Apple Silicon) |
 | Windows | Installer | `PI-Desktop-win-x64.exe` |
@@ -63,20 +62,6 @@ Download from [GitHub Releases](https://github.com/pi-desktop-gui/pi-desktop-gui
 ```bash
 chmod +x PI-Desktop-linux-x64.AppImage
 ./PI-Desktop-linux-x64.AppImage
-```
-
-#### deb (Debian/Ubuntu)
-
-```bash
-sudo dpkg -i pi-desktop_0.0.1_amd64.deb
-pi-desktop
-```
-
-#### rpm (Fedora/RHEL)
-
-```bash
-sudo rpm -i pi-desktop-0.0.1.x86_64.rpm
-pi-desktop
 ```
 
 #### macOS
