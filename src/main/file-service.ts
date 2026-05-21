@@ -50,6 +50,22 @@ export interface SearchResult {
   snippet?: string
 }
 
+export function buildNewFileDiff(relativePath: string, content: string): string {
+  const lines = content.endsWith('\n') ? content.slice(0, -1).split('\n') : content.split('\n')
+  const hunkSize = lines.length
+
+  return [
+    `diff --git a/${relativePath} b/${relativePath}`,
+    'new file mode 100644',
+    'index 0000000..0000000',
+    '--- /dev/null',
+    `+++ b/${relativePath}`,
+    `@@ -0,0 +1,${hunkSize} @@`,
+    ...lines.map((line) => `+${line}`),
+    '',
+  ].join('\n')
+}
+
 export class FileService {
   private watcher: FSWatcher | null = null
   private workspacePath: string
@@ -185,10 +201,31 @@ export class FileService {
         cwd: this.workspacePath,
         timeout: 10_000,
       })
-      return stdout
+      const untrackedDiff = await this.getUntrackedFileDiff(filePath)
+      return [stdout, untrackedDiff].filter((part) => part.trim()).join('\n')
     } catch {
       return ''
     }
+  }
+
+  private async getUntrackedFileDiff(filePath?: string): Promise<string> {
+    const statusMap = await this.getGitStatus()
+    const untrackedPaths = [...statusMap.entries()]
+      .filter(([, status]) => status.index === '?' && status.worktree === '?')
+      .map(([path]) => path)
+      .filter((path) => !filePath || path === filePath)
+
+    const diffs: string[] = []
+    for (const path of untrackedPaths) {
+      try {
+        const content = await readFile(join(this.workspacePath, path), 'utf-8')
+        diffs.push(buildNewFileDiff(path, content))
+      } catch {
+        // Skip unreadable or binary-like untracked files.
+      }
+    }
+
+    return diffs.join('\n')
   }
 
   /**
