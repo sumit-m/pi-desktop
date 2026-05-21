@@ -800,6 +800,12 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
     try {
       await window.piDesktop.workspace.setActive(workspaceId)
       get().clearMessages()
+      // Re-sync PI status from main: each workspace has its own PiRpcManager,
+      // so the new active workspace's PI may be in a different state than
+      // what piStatus is currently showing. Without this, the `if running return`
+      // guard in startPi() would skip starting the new workspace's PI.
+      const status = await window.piDesktop.pi.getStatus()
+      set({ piStatus: status.status, piPid: status.pid, piError: status.error })
       await get().loadWorkspaces()
       await get().refreshSessionState()
       await get().refreshSessionStats()

@@ -34,6 +34,7 @@ const WORKSPACE_COLORS = [
 ]
 
 export type PiManagerListener = (manager: PiRpcManager) => void
+export type ActiveWorkspaceListener = (workspaceId: string | null) => void
 
 export class WorkspaceManager {
   private workspaces: Workspace[] = []
@@ -44,6 +45,7 @@ export class WorkspaceManager {
   private nextColorIndex = 0
   private piManagerListeners: PiManagerListener[] = []
   private wiredPiManagers = new WeakSet<PiRpcManager>()
+  private activeWorkspaceListeners: ActiveWorkspaceListener[] = []
 
   constructor() {
     const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? ''
@@ -54,6 +56,16 @@ export class WorkspaceManager {
     this.piManagerListeners.push(listener)
     for (const manager of this.piManagers.values()) {
       this.wirePiManager(manager)
+    }
+  }
+
+  onActiveWorkspaceChanged(listener: ActiveWorkspaceListener): void {
+    this.activeWorkspaceListeners.push(listener)
+  }
+
+  private emitActiveWorkspaceChanged(): void {
+    for (const listener of this.activeWorkspaceListeners) {
+      listener(this.activeWorkspaceId)
     }
   }
 
@@ -133,11 +145,13 @@ export class WorkspaceManager {
     this.fileServices.set(workspace.id, fileService)
 
     // Auto-set as active if it's the first workspace
-    if (!this.activeWorkspaceId) {
+    const becameActive = !this.activeWorkspaceId
+    if (becameActive) {
       this.activeWorkspaceId = workspace.id
     }
 
     await this.saveWorkspaces()
+    if (becameActive) this.emitActiveWorkspaceChanged()
     return workspace
   }
 
@@ -145,10 +159,12 @@ export class WorkspaceManager {
     const workspace = this.workspaces.find((w) => w.id === workspaceId)
     if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`)
 
+    const changed = this.activeWorkspaceId !== workspaceId
     workspace.lastActiveAt = Date.now()
     this.activeWorkspaceId = workspaceId
 
     await this.saveWorkspaces()
+    if (changed) this.emitActiveWorkspaceChanged()
     return workspace
   }
 
@@ -171,11 +187,14 @@ export class WorkspaceManager {
     this.workspaces.splice(index, 1)
 
     // If removed workspace was active, switch to first available
+    let activeChanged = false
     if (this.activeWorkspaceId === workspaceId) {
       this.activeWorkspaceId = this.workspaces.length > 0 ? this.workspaces[0].id : null
+      activeChanged = true
     }
 
     await this.saveWorkspaces()
+    if (activeChanged) this.emitActiveWorkspaceChanged()
   }
 
   async renameWorkspace(workspaceId: string, name: string): Promise<void> {

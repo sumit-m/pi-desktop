@@ -598,21 +598,44 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
 
   // ─── Event Forwarding ───────────────────────────────────────────────────
 
-  // Forward PI events from every workspace's PI manager to the renderer.
-  // Why: a switched-to workspace may have a different PiRpcManager instance;
-  // wiring once at startup against the active manager would drop events.
+  // Forward PI events ONLY from the currently-active workspace's PI manager.
+  // Why: each workspace has its own PiRpcManager. If we forwarded events from
+  // every manager, the renderer (whose piStatus is a single global) would see
+  // status from inactive workspaces and the green dot would lie about whether
+  // the *active* workspace's PI is running. Filtering here keeps the renderer's
+  // view of "PI" aligned with the active workspace it's looking at.
+  const isActiveManager = (manager: PiRpcManager): boolean =>
+    manager === workspaceManager.getActivePiManager()
+
   workspaceManager.onPiManager((piManager: PiRpcManager) => {
     piManager.on('event', (event: PiRpcEvent) => {
-      broadcast(IPC_CHANNELS.EVENT_PI, event)
+      if (isActiveManager(piManager)) {
+        broadcast(IPC_CHANNELS.EVENT_PI, event)
+      }
     })
 
     piManager.on('status-change', () => {
-      broadcast(IPC_CHANNELS.EVENT_PI, {
-        type: 'status_change',
-        ...piManager.getStatus(),
-      })
+      if (isActiveManager(piManager)) {
+        broadcast(IPC_CHANNELS.EVENT_PI, {
+          type: 'status_change',
+          ...piManager.getStatus(),
+        })
+      }
     })
   })
+
+  // Push the active workspace's PI status to the renderer whenever the active
+  // workspace changes, so the status indicator reflects the new workspace
+  // even if its PI manager hasn't emitted any events recently.
+  const broadcastActiveStatus = (): void => {
+    const pi = workspaceManager.getActivePiManager()
+    if (!pi) return
+    broadcast(IPC_CHANNELS.EVENT_PI, {
+      type: 'status_change',
+      ...pi.getStatus(),
+    })
+  }
+  workspaceManager.onActiveWorkspaceChanged(broadcastActiveStatus)
 }
 
 // ─── Validation Helpers ──────────────────────────────────────────────────────
