@@ -447,6 +447,8 @@ export type AgentMessage = AgentUserMessage | AgentAssistantMessage | AgentToolR
 
 // ─── Settings Types ─────────────────────────────────────────────────────────
 
+export type PermissionMode = 'plan-readonly' | 'ask-edits' | 'ask-commands' | 'trusted'
+
 export interface AppSettings {
   piExecutablePath: string
   defaultArgs: string[]
@@ -457,6 +459,7 @@ export interface AppSettings {
   fontSize: number
   showThinking: boolean
   autoScroll: boolean
+  permissionMode: PermissionMode
 }
 
 // ─── Workspace Types ────────────────────────────────────────────────────────

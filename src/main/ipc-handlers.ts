@@ -1118,6 +1118,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   fontSize: 14,
   showThinking: true,
   autoScroll: true,
+  permissionMode: 'ask-edits',
 }
 
 function getSettingsPath(): string {
