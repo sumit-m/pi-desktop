@@ -105,7 +105,6 @@ export const IPC_CHANNELS = {
 
   // Events (main → renderer)
   EVENT_PI: 'event:pi',
-  EVENT_FILE_CHANGE: 'event:file-change',
 } as const
 
 // ─── PI Process Types ───────────────────────────────────────────────────────

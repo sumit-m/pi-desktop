@@ -7,7 +7,6 @@ import type {
   SessionStats,
   SessionListItem,
   ModelInfo,
-  AgentMessage,
   AppSettings,
   PiMessageUpdateEvent,
   PiToolExecutionStartEvent,
@@ -45,12 +44,6 @@ export interface DisplayMessage {
   model?: string
   provider?: string
   cost?: number
-}
-
-export interface PendingPrompt {
-  id: string
-  message: string
-  timestamp: number
 }
 
 // ─── Store Shape ─────────────────────────────────────────────────────────────

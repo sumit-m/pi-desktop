@@ -1,6 +1,6 @@
-import { watch, type FSWatcher } from 'chokidar'
+import { type FSWatcher } from 'chokidar'
 import { readdir, stat, readFile } from 'fs/promises'
-import { join, relative, extname, basename } from 'path'
+import { join, extname, basename } from 'path'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 
@@ -49,8 +49,6 @@ export interface SearchResult {
   line?: number
   snippet?: string
 }
-
-export type FileWatcherCallback = (event: string, path: string) => void
 
 export class FileService {
   private watcher: FSWatcher | null = null
@@ -219,29 +217,10 @@ export class FileService {
   }
 
   /**
-   * Start watching the workspace for changes.
-   */
-  startWatching(callback: FileWatcherCallback): void {
-    this.stopWatching()
-
-    this.watcher = watch(this.workspacePath, {
-      ignored: (watchPath: string) => {
-        const parts = watchPath.split('/')
-        return parts.some((part) => IGNORED_DIRS.has(part))
-      },
-      persistent: true,
-      ignoreInitial: true,
-      depth: 5,
-    })
-
-    this.watcher
-      .on('add', (path) => callback('add', relative(this.workspacePath, path)))
-      .on('change', (path) => callback('change', relative(this.workspacePath, path)))
-      .on('unlink', (path) => callback('unlink', relative(this.workspacePath, path)))
-  }
-
-  /**
-   * Stop watching.
+   * Stop watching. Defensive cleanup — kept because callers (workspace
+   * removal, app shutdown) invoke it. `startWatching` itself was removed
+   * because nothing in the UI was actually subscribing to file events;
+   * see MEMORY.md for the dead-export sweep that found it.
    */
   stopWatching(): void {
     if (this.watcher) {
