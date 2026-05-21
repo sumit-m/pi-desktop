@@ -230,6 +230,28 @@ function extractTextContent(content: unknown): string {
   return ''
 }
 
+/**
+ * Walk the timeline backwards, find the most recent event matching the
+ * predicate that still has status 'running', and close it with the given
+ * status (recording duration). Returns a new array (or the same array if
+ * nothing matched).
+ */
+function closeMostRecentRunning(
+  events: TimelineEvent[],
+  match: (event: TimelineEvent) => boolean,
+  status: 'success' | 'error' | 'cancelled'
+): TimelineEvent[] {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i]
+    if (e.status !== 'running') continue
+    if (!match(e)) continue
+    const next = events.slice()
+    next[i] = { ...e, status, duration: Date.now() - e.timestamp }
+    return next
+  }
+  return events
+}
+
 // ─── Store ───────────────────────────────────────────────────────────────────
 
 export const useAppStore = create<AppState & AppActions>((set, get) => ({
@@ -659,7 +681,15 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
         break
 
       case 'agent_end':
-        set({ isStreaming: false })
+        set((state) => ({
+          isStreaming: false,
+          // Close out the matching 'Agent started processing' entry so its
+          // spinner stops. Without this, the run-state indicator on the
+          // start entry persists forever even after the agent completes.
+          timelineEvents: closeMostRecentRunning(state.timelineEvents, (e) =>
+            e.type === 'system' && e.title === 'Agent started processing'
+          , 'success'),
+        }))
         get().refreshSessionStats()
         get().addTimelineEvent({
           id: generateId(),
@@ -690,6 +720,14 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
       case 'tool_execution_end': {
         handleToolEnd(event as PiToolExecutionEndEvent, set)
         const toolEvent = event as PiToolExecutionEndEvent
+        set((state) => ({
+          // Close out the matching tool_start entry (paired by toolCallId)
+          // so its spinner stops.
+          timelineEvents: closeMostRecentRunning(state.timelineEvents, (e) =>
+            e.type === 'tool_start' &&
+            (e.metadata as Record<string, unknown> | undefined)?.toolCallId === toolEvent.toolCallId
+          , toolEvent.isError ? 'error' : 'success'),
+        }))
         get().addTimelineEvent({
           id: generateId(),
           type: 'tool_end',
