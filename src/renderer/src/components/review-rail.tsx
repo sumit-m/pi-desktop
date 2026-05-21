@@ -163,6 +163,10 @@ export function ReviewRail(): React.JSX.Element {
 }
 
 function formatGitStatus(status: GitFileStatus): string {
-  if (status.index === '?' && status.worktree === '?') return '??'
-  return `${status.index}${status.worktree}`.trim()
+  if (status.index === '?' && status.worktree === '?') return 'NEW'
+  if (status.index === 'D' || status.worktree === 'D') return 'DEL'
+  if (status.index === 'A') return 'ADD'
+  if (status.index === 'R') return 'REN'
+  if (status.index === 'M' || status.worktree === 'M') return status.isStaged ? 'STG' : 'MOD'
+  return 'CHG'
 }
