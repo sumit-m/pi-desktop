@@ -112,6 +112,10 @@ interface AppState {
   // Session tags
   sessionTags: Record<string, string[]>
   allUsedTags: string[]
+
+  // Archived sessions (GUI-only registry — PI has no archive concept)
+  archivedSessions: Record<string, number>
+  showArchived: boolean
 }
 
 interface AppActions {
@@ -195,6 +199,13 @@ interface AppActions {
   addSessionTag: (sessionId: string, tag: string) => Promise<void>
   removeSessionTag: (sessionId: string, tag: string) => Promise<void>
   getTagsForSession: (sessionId: string) => string[]
+
+  // Archive / delete
+  loadArchivedSessions: () => Promise<void>
+  archiveSession: (sessionId: string) => Promise<void>
+  unarchiveSession: (sessionId: string) => Promise<void>
+  deleteSession: (session: SessionListItem) => Promise<{ ok: boolean; method: 'trash' | 'unlink'; error?: string }>
+  toggleShowArchived: () => void
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -267,6 +278,9 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
 
   sessionTags: {},
   allUsedTags: [],
+
+  archivedSessions: {},
+  showArchived: false,
 
   // ─── PI Lifecycle ─────────────────────────────────────────────────────
 
@@ -973,6 +987,79 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   getTagsForSession: (sessionId) => {
     return get().sessionTags[sessionId] ?? []
   },
+
+  // ─── Archive / Delete ─────────────────────────────────────────────────
+
+  loadArchivedSessions: async () => {
+    try {
+      const archived = await window.piDesktop.session.listArchived()
+      set({ archivedSessions: archived })
+    } catch {
+      // Silent failure — archive registry is best-effort
+    }
+  },
+
+  archiveSession: async (sessionId) => {
+    try {
+      const archived = await window.piDesktop.session.archive(sessionId)
+      set({ archivedSessions: archived })
+    } catch (err) {
+      get().addMessage({
+        id: generateId(),
+        role: 'system',
+        content: `Archive error: ${err instanceof Error ? err.message : String(err)}`,
+        timestamp: Date.now(),
+      })
+    }
+  },
+
+  unarchiveSession: async (sessionId) => {
+    try {
+      const archived = await window.piDesktop.session.unarchive(sessionId)
+      set({ archivedSessions: archived })
+    } catch (err) {
+      get().addMessage({
+        id: generateId(),
+        role: 'system',
+        content: `Unarchive error: ${err instanceof Error ? err.message : String(err)}`,
+        timestamp: Date.now(),
+      })
+    }
+  },
+
+  deleteSession: async (session) => {
+    try {
+      const result = await window.piDesktop.session.delete(session.path)
+      if (result.ok) {
+        // Refresh list and prune archive entry locally
+        set((state) => {
+          const next = { ...state.archivedSessions }
+          delete next[session.sessionId]
+          return { archivedSessions: next }
+        })
+
+        await get().refreshSessionList()
+
+        // If the deleted session was the active one, clear the chat and create a new session
+        if (get().sessionState?.sessionFile === session.path) {
+          get().clearMessages()
+          await get().createNewSession()
+        }
+      }
+      return result
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      get().addMessage({
+        id: generateId(),
+        role: 'system',
+        content: `Delete error: ${message}`,
+        timestamp: Date.now(),
+      })
+      return { ok: false, method: 'unlink' as const, error: message }
+    }
+  },
+
+  toggleShowArchived: () => set((state) => ({ showArchived: !state.showArchived })),
 }))
 
 // ─── Event Handlers ──────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { useAppStore } from '../store'
-import { FolderOpen, Plus, Clock, Search, ChevronRight, ChevronDown, FolderTree, Tag, X } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { FolderOpen, Plus, Clock, Search, ChevronRight, ChevronDown, FolderTree, Tag, X, MoreVertical, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { clsx } from 'clsx'
 import type { SessionListItem } from '../../../shared/ipc-contracts'
 
@@ -14,16 +14,26 @@ export function SessionPanel(): React.JSX.Element {
   const setCurrentView = useAppStore((state) => state.setCurrentView)
   const refreshSessionList = useAppStore((state) => state.refreshSessionList)
   const workspaces = useAppStore((state) => state.workspaces)
+  const archivedSessions = useAppStore((state) => state.archivedSessions)
+  const showArchived = useAppStore((state) => state.showArchived)
+  const toggleShowArchived = useAppStore((state) => state.toggleShowArchived)
 
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set())
   const [showAllProjects, setShowAllProjects] = useState(true)
 
-  // Group sessions by project
+  const archivedCount = useMemo(() => {
+    return sessionList.filter((s) => s.sessionId in archivedSessions).length
+  }, [sessionList, archivedSessions])
+
+  // Group sessions by project (after filtering by archive state)
   const groupedSessions = useMemo(() => {
     const groups = new Map<string, SessionListItem[]>()
 
     for (const session of sessionList) {
+      const isArchived = session.sessionId in archivedSessions
+      if (isArchived && !showArchived) continue
+
       const key = session.projectPath || 'unknown'
       if (!groups.has(key)) groups.set(key, [])
       groups.get(key)!.push(session)
@@ -37,7 +47,7 @@ export function SessionPanel(): React.JSX.Element {
     })
 
     return sorted
-  }, [sessionList])
+  }, [sessionList, archivedSessions, showArchived])
 
   // Filter by search
   const filteredGroups = useMemo(() => {
@@ -142,6 +152,19 @@ export function SessionPanel(): React.JSX.Element {
             )}
           >
             {showAllProjects ? 'All Projects' : 'Current Only'}
+          </button>
+          <button
+            onClick={toggleShowArchived}
+            title={showArchived ? 'Hide archived sessions' : 'Show archived sessions'}
+            className={clsx(
+              'flex items-center gap-1.5 rounded-md px-3 py-2 text-xs transition-colors',
+              showArchived
+                ? 'bg-amber-900/30 text-amber-400'
+                : 'bg-neutral-800 text-neutral-400 hover:text-neutral-300'
+            )}
+          >
+            <Archive size={12} />
+            {showArchived ? 'Hiding none' : `Archived (${archivedCount})`}
           </button>
         </div>
 
@@ -283,11 +306,31 @@ function SessionEntry({
   const sessionTags = useAppStore((state) => state.sessionTags)
   const addSessionTag = useAppStore((state) => state.addSessionTag)
   const removeSessionTag = useAppStore((state) => state.removeSessionTag)
-  const allUsedTags = useAppStore((state) => state.allUsedTags)
+  const archivedSessions = useAppStore((state) => state.archivedSessions)
+  const archiveSession = useAppStore((state) => state.archiveSession)
+  const unarchiveSession = useAppStore((state) => state.unarchiveSession)
+  const deleteSession = useAppStore((state) => state.deleteSession)
 
   const tags = sessionTags[session.sessionId] ?? []
+  const isArchived = session.sessionId in archivedSessions
   const [showTagInput, setShowTagInput] = useState(false)
   const [tagInput, setTagInput] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Close kebab menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDocClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [menuOpen])
 
   const handleAddTag = async () => {
     if (tagInput.trim()) {
@@ -297,13 +340,37 @@ function SessionEntry({
     }
   }
 
+  const handleArchive = async () => {
+    setMenuOpen(false)
+    setBusy(true)
+    try {
+      if (isArchived) await unarchiveSession(session.sessionId)
+      else await archiveSession(session.sessionId)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    setBusy(true)
+    try {
+      await deleteSession(session)
+    } finally {
+      setBusy(false)
+      setConfirmingDelete(false)
+    }
+  }
+
   return (
     <div
       className={clsx(
-        'group px-4 py-2 pl-10 transition-colors',
+        'group px-4 py-2 pl-10 transition-colors relative',
         isActive
           ? 'bg-blue-900/20'
-          : 'hover:bg-neutral-800/30'
+          : isArchived
+            ? 'bg-neutral-900/40 opacity-60 hover:opacity-100 hover:bg-neutral-800/30'
+            : 'hover:bg-neutral-800/30',
+        busy && 'pointer-events-none opacity-40'
       )}
     >
       <button
@@ -315,7 +382,6 @@ function SessionEntry({
           <div className={clsx('text-sm truncate', isActive ? 'text-blue-300' : 'text-neutral-400')}>
             {session.name || session.sessionId.slice(0, 12)}
           </div>
-          {/* Tags */}
           {tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">
               {tags.map((tag) => (
@@ -342,6 +408,11 @@ function SessionEntry({
         <div className="text-[10px] text-neutral-600 shrink-0">
           {formatRelativeTime(session.lastModified)}
         </div>
+        {isArchived && (
+          <span className="rounded bg-amber-900/40 px-1.5 py-0.5 text-[10px] text-amber-400">
+            archived
+          </span>
+        )}
         {isActive && (
           <span className="rounded bg-blue-900/40 px-1.5 py-0.5 text-[10px] text-blue-400">
             active
@@ -349,39 +420,96 @@ function SessionEntry({
         )}
       </button>
 
-      {/* Tag input (shown on hover) */}
-      <div className="mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        {showTagInput ? (
-          <div className="flex items-center gap-1">
-            <input
-              type="text"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAddTag()
-                if (e.key === 'Escape') setShowTagInput(false)
-              }}
-              placeholder="Add tag..."
-              className="flex-1 rounded border border-neutral-700 bg-neutral-800 px-2 py-0.5 text-[10px] text-neutral-300 placeholder:text-neutral-600 focus:border-blue-500 focus:outline-none"
-              autoFocus
-            />
+      {/* Kebab menu trigger */}
+      <div ref={menuRef} className="absolute right-2 top-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            setMenuOpen((o) => !o)
+          }}
+          className="rounded p-1 hover:bg-neutral-700/60 text-neutral-500 hover:text-neutral-300"
+          aria-label="Session actions"
+        >
+          <MoreVertical size={14} />
+        </button>
+        {menuOpen && (
+          <div className="absolute right-0 top-7 z-20 min-w-[150px] rounded-md border border-neutral-700 bg-neutral-900 shadow-xl py-1 text-sm">
             <button
-              onClick={handleAddTag}
-              className="rounded bg-blue-600 px-1.5 py-0.5 text-[10px] text-white"
+              onClick={handleArchive}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-neutral-300 hover:bg-neutral-800"
             >
-              Add
+              {isArchived ? <><ArchiveRestore size={13} /> Unarchive</> : <><Archive size={13} /> Archive</>}
+            </button>
+            <button
+              onClick={() => {
+                setMenuOpen(false)
+                setConfirmingDelete(true)
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-red-400 hover:bg-red-900/30"
+            >
+              <Trash2 size={13} /> Delete…
             </button>
           </div>
-        ) : (
-          <button
-            onClick={() => setShowTagInput(true)}
-            className="flex items-center gap-1 text-[10px] text-neutral-600 hover:text-neutral-400"
-          >
-            <Tag size={10} />
-            Add tag
-          </button>
         )}
       </div>
+
+      {/* Inline delete confirmation */}
+      {confirmingDelete && (
+        <div className="mt-2 flex items-center gap-2 rounded border border-red-900/50 bg-red-950/30 px-2 py-1.5 text-[11px] text-red-300">
+          <Trash2 size={12} className="shrink-0" />
+          <span className="flex-1">
+            Delete this session? Will use <code className="text-red-200">trash</code> if available, otherwise permanent.
+          </span>
+          <button
+            onClick={() => setConfirmingDelete(false)}
+            className="rounded px-2 py-0.5 text-neutral-400 hover:text-neutral-200"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleDelete}
+            className="rounded bg-red-700 px-2 py-0.5 text-white hover:bg-red-600"
+          >
+            Delete
+          </button>
+        </div>
+      )}
+
+      {/* Tag input (shown on hover, hidden during delete confirm) */}
+      {!confirmingDelete && (
+        <div className="mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {showTagInput ? (
+            <div className="flex items-center gap-1">
+              <input
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddTag()
+                  if (e.key === 'Escape') setShowTagInput(false)
+                }}
+                placeholder="Add tag..."
+                className="flex-1 rounded border border-neutral-700 bg-neutral-800 px-2 py-0.5 text-[10px] text-neutral-300 placeholder:text-neutral-600 focus:border-blue-500 focus:outline-none"
+                autoFocus
+              />
+              <button
+                onClick={handleAddTag}
+                className="rounded bg-blue-600 px-1.5 py-0.5 text-[10px] text-white"
+              >
+                Add
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowTagInput(true)}
+              className="flex items-center gap-1 text-[10px] text-neutral-600 hover:text-neutral-400"
+            >
+              <Tag size={10} />
+              Add tag
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

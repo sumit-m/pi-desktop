@@ -35,6 +35,10 @@ export const IPC_CHANNELS = {
   SESSION_SET_NAME: 'session:set-name',
   SESSION_EXPORT_HTML: 'session:export-html',
   SESSION_GET_FORK_MESSAGES: 'session:get-fork-messages',
+  SESSION_DELETE: 'session:delete',
+  SESSION_ARCHIVE: 'session:archive',
+  SESSION_UNARCHIVE: 'session:unarchive',
+  SESSION_LIST_ARCHIVED: 'session:list-archived',
 
   // Model management
   MODEL_SET: 'model:set',
@@ -365,6 +369,14 @@ export interface SessionListItem {
   projectPath: string
   projectName: string
 }
+
+export interface SessionDeleteResult {
+  ok: boolean
+  method: 'trash' | 'unlink'
+  error?: string
+}
+
+export type ArchivedSessionsMap = Record<string, number>
 
 // ─── Agent Message Types ────────────────────────────────────────────────────
 

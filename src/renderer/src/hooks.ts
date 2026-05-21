@@ -138,6 +138,7 @@ export function useInitialize(): void {
       await refreshSessionStats()
       await refreshSessionList()
       await useAppStore.getState().loadTags()
+      await useAppStore.getState().loadArchivedSessions()
     }
 
     initialize()

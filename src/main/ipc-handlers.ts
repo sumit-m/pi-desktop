@@ -2,12 +2,18 @@ import { ipcMain, dialog, shell, app, BrowserWindow } from 'electron'
 import { PiRpcManager } from './pi-rpc-manager'
 import { WorkspaceManager } from './workspace-manager'
 import { SessionTagManager } from './session-tags'
-import type { PiStartOptions, PiRpcEvent, AppSettings } from '../shared/ipc-contracts'
+import { ArchivedSessionsManager } from './archived-sessions'
+import type {
+  PiStartOptions,
+  PiRpcEvent,
+  AppSettings,
+  SessionDeleteResult,
+} from '../shared/ipc-contracts'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
-import { readdir, stat, readFile, writeFile, mkdir, access } from 'fs/promises'
-import { join } from 'path'
+import { readdir, stat, readFile, writeFile, mkdir, access, unlink } from 'fs/promises'
+import { basename, join } from 'path'
 import { existsSync } from 'fs'
-import { execFile } from 'child_process'
+import { execFile, spawnSync } from 'child_process'
 import { promisify } from 'util'
 
 const execFileAsync = promisify(execFile)
@@ -44,8 +50,46 @@ function isOptionalStringArray(value: unknown): value is string[] | undefined {
   return value === undefined || (Array.isArray(value) && value.every(isString))
 }
 
+const SESSION_FILE_EXTENSION = '.jsonl'
+
+function sessionIdFromPath(sessionPath: string): string {
+  const base = basename(sessionPath)
+  return base.endsWith(SESSION_FILE_EXTENSION)
+    ? base.slice(0, -SESSION_FILE_EXTENSION.length)
+    : base
+}
+
+/**
+ * Delete a session file. Mirrors PI's own session-selector deletion path:
+ * try the `trash` CLI first (recoverable), fall back to `unlink` (permanent).
+ *
+ * Why this lives in the GUI and not in PI: PI's RPC mode exposes no
+ * delete_session command (verified against pi.dev/docs/latest/rpc).
+ * The official guidance is "Sessions can be removed by deleting their
+ * .jsonl files" — that's what this does.
+ */
+async function deleteSessionFile(sessionPath: string): Promise<SessionDeleteResult> {
+  const trashArgs = sessionPath.startsWith('-') ? ['--', sessionPath] : [sessionPath]
+  const trashResult = spawnSync('trash', trashArgs, { encoding: 'utf-8' })
+  if (trashResult.status === 0 || !existsSync(sessionPath)) {
+    return { ok: true, method: 'trash' }
+  }
+
+  try {
+    await unlink(sessionPath)
+    return { ok: true, method: 'unlink' }
+  } catch (err) {
+    return {
+      ok: false,
+      method: 'unlink',
+      error: err instanceof Error ? err.message : String(err),
+    }
+  }
+}
+
 export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
   const tagManager = new SessionTagManager()
+  const archivedSessions = new ArchivedSessionsManager()
 
   // Helper: get PI manager for active workspace
   function getActivePi(): PiRpcManager {
@@ -223,6 +267,38 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
 
   ipcMain.handle(IPC_CHANNELS.SESSION_GET_FORK_MESSAGES, async () => {
     return getActivePi().sendCommand({ type: 'get_fork_messages' })
+  })
+
+  ipcMain.handle(IPC_CHANNELS.SESSION_DELETE, async (_event, sessionPath: unknown): Promise<SessionDeleteResult> => {
+    if (!isString(sessionPath)) throw new Error('sessionPath must be a string')
+    if (!sessionPath.endsWith(SESSION_FILE_EXTENSION)) {
+      throw new Error('sessionPath must point to a .jsonl session file')
+    }
+
+    const result = await deleteSessionFile(sessionPath)
+    if (result.ok) {
+      const sessionId = sessionIdFromPath(sessionPath)
+      // Clean up registries so deleted sessions don't accumulate stale entries
+      await archivedSessions.forget(sessionId)
+      await tagManager.setTags(sessionId, [])
+    }
+    return result
+  })
+
+  ipcMain.handle(IPC_CHANNELS.SESSION_ARCHIVE, async (_event, sessionId: unknown) => {
+    if (!isString(sessionId)) throw new Error('sessionId must be a string')
+    await archivedSessions.archive(sessionId)
+    return archivedSessions.getAll()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.SESSION_UNARCHIVE, async (_event, sessionId: unknown) => {
+    if (!isString(sessionId)) throw new Error('sessionId must be a string')
+    await archivedSessions.unarchive(sessionId)
+    return archivedSessions.getAll()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.SESSION_LIST_ARCHIVED, async () => {
+    return archivedSessions.getAll()
   })
 
   // ─── Model Management ───────────────────────────────────────────────────

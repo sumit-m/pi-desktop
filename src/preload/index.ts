@@ -4,6 +4,8 @@ import type {
   PiStartOptions,
   PiStatus,
   SessionListItem,
+  SessionDeleteResult,
+  ArchivedSessionsMap,
   AppSettings,
   Workspace,
   InstalledPackage,
@@ -49,6 +51,10 @@ interface PiDesktopAPI {
     setName(name: string): Promise<unknown>
     exportHtml(outputPath?: string): Promise<unknown>
     getForkMessages(): Promise<unknown>
+    delete(sessionPath: string): Promise<SessionDeleteResult>
+    archive(sessionId: string): Promise<ArchivedSessionsMap>
+    unarchive(sessionId: string): Promise<ArchivedSessionsMap>
+    listArchived(): Promise<ArchivedSessionsMap>
   }
 
   // Model management
@@ -177,6 +183,10 @@ const api: PiDesktopAPI = {
     setName: (name) => ipcRenderer.invoke(IPC_CHANNELS.SESSION_SET_NAME, name),
     exportHtml: (outputPath) => ipcRenderer.invoke(IPC_CHANNELS.SESSION_EXPORT_HTML, outputPath),
     getForkMessages: () => ipcRenderer.invoke(IPC_CHANNELS.SESSION_GET_FORK_MESSAGES),
+    delete: (sessionPath) => ipcRenderer.invoke(IPC_CHANNELS.SESSION_DELETE, sessionPath),
+    archive: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.SESSION_ARCHIVE, sessionId),
+    unarchive: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.SESSION_UNARCHIVE, sessionId),
+    listArchived: () => ipcRenderer.invoke(IPC_CHANNELS.SESSION_LIST_ARCHIVED),
   },
 
   model: {
