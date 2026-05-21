@@ -9,7 +9,12 @@ import {
   Search,
   RotateCcw,
   FileText,
+  Archive,
+  ArchiveRestore,
+  Trash2,
+  MessageSquare,
 } from 'lucide-react'
+import type { SessionListItem } from '../../../shared/ipc-contracts'
 
 interface ContextMenuItem {
   id: string
@@ -299,6 +304,67 @@ export function buildMessageContextMenu(messageContent: string): ContextMenuItem
       action: () => {},
     },
     ...buildDefaultContextMenu(),
+  ]
+}
+
+/**
+ * Right-click menu for session entries (sidebar Recent Sessions list,
+ * Sessions panel rows). Centralizes the Open / Archive / Delete actions
+ * so both surfaces show the same behavior.
+ */
+export interface SessionContextMenuActions {
+  onOpen: (session: SessionListItem) => void
+  onArchive: (sessionId: string) => void
+  onUnarchive: (sessionId: string) => void
+  onDelete: (session: SessionListItem) => void
+}
+
+export function buildSessionContextMenu(
+  session: SessionListItem,
+  isArchived: boolean,
+  actions: SessionContextMenuActions
+): ContextMenuItem[] {
+  const displayName = session.name || session.sessionId.slice(0, 12)
+  return [
+    {
+      id: 'session-open',
+      label: 'Open Session',
+      icon: <MessageSquare size={14} />,
+      action: () => actions.onOpen(session),
+    },
+    {
+      id: 'divider-session-1',
+      label: '',
+      divider: true,
+      action: () => {},
+    },
+    isArchived
+      ? {
+          id: 'session-unarchive',
+          label: 'Unarchive',
+          icon: <ArchiveRestore size={14} />,
+          action: () => actions.onUnarchive(session.sessionId),
+        }
+      : {
+          id: 'session-archive',
+          label: 'Archive',
+          icon: <Archive size={14} />,
+          action: () => actions.onArchive(session.sessionId),
+        },
+    {
+      id: 'session-delete',
+      label: 'Delete…',
+      icon: <Trash2 size={14} />,
+      action: () => {
+        // Confirm before destructive action. Trash is recoverable when
+        // installed; without it, delete is permanent. The wording is
+        // honest about that.
+        const ok = window.confirm(
+          `Delete session "${displayName}"?\n\nWill use the system 'trash' CLI if installed (recoverable); otherwise the .jsonl session file is permanently removed.`
+        )
+        if (ok) actions.onDelete(session)
+      },
+    },
   ]
 }
 

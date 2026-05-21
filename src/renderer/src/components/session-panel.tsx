@@ -3,6 +3,7 @@ import { FolderOpen, Plus, Clock, Search, ChevronRight, ChevronDown, FolderTree,
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { clsx } from 'clsx'
 import type { SessionListItem } from '../../../shared/ipc-contracts'
+import { useContextMenu, buildSessionContextMenu } from './context-menu'
 
 export function SessionPanel(): React.JSX.Element {
   const sessionList = useAppStore((state) => state.sessionList)
@@ -361,8 +362,26 @@ function SessionEntry({
     }
   }
 
+  const { show: showCtx, ContextMenuComponent: RowMenu } = useContextMenu()
+  const handleRightClick = (e: React.MouseEvent): void => {
+    // Stop the document-level default menu from also firing
+    e.nativeEvent.stopPropagation()
+    showCtx(
+      e,
+      buildSessionContextMenu(session, isArchived, {
+        onOpen: () => onSelect(),
+        onArchive: (id) => { archiveSession(id) },
+        onUnarchive: (id) => { unarchiveSession(id) },
+        // Use the inline confirmation row in this surface (UX matches the
+        // existing flow) instead of a window.confirm.
+        onDelete: () => setConfirmingDelete(true),
+      })
+    )
+  }
+
   return (
     <div
+      onContextMenu={handleRightClick}
       className={clsx(
         'group px-4 py-2 pl-10 transition-colors relative',
         isActive
@@ -396,6 +415,8 @@ function SessionEntry({
                       e.stopPropagation()
                       removeSessionTag(session.sessionId, tag)
                     }}
+                    title={`Remove tag ${tag}`}
+                    aria-label={`Remove tag ${tag}`}
                     className="ml-0.5 hover:text-neutral-200"
                   >
                     <X size={8} />
@@ -420,15 +441,18 @@ function SessionEntry({
         )}
       </button>
 
-      {/* Kebab menu trigger */}
-      <div ref={menuRef} className="absolute right-2 top-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Kebab menu trigger — always visible so the actions are discoverable.
+          The row also honors right-click for the same actions (see onContextMenu
+          on the wrapping div). */}
+      <div ref={menuRef} className="absolute right-2 top-1.5 transition-opacity">
         <button
           onClick={(e) => {
             e.stopPropagation()
             setMenuOpen((o) => !o)
           }}
-          className="rounded p-1 hover:bg-neutral-700/60 text-neutral-500 hover:text-neutral-300"
+          className="rounded p-1 text-neutral-400 hover:bg-neutral-700/60 hover:text-neutral-200"
           aria-label="Session actions"
+          title="Session actions (or right-click the row)"
         >
           <MoreVertical size={14} />
         </button>
@@ -510,6 +534,7 @@ function SessionEntry({
           )}
         </div>
       )}
+      {RowMenu}
     </div>
   )
 }
