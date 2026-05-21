@@ -23,6 +23,7 @@ import type {
   InstalledSkill,
   CatalogPackage,
   TimelineEvent,
+  PermissionMode,
 } from '../../shared/ipc-contracts'
 
 // ─── Message State (renderer-local, built from events) ───────────────────────
@@ -153,6 +154,7 @@ interface AppActions {
   toggleSidebar: () => void
   toggleTerminal: () => void
   loadSettings: () => Promise<void>
+  setPermissionMode: (mode: PermissionMode) => Promise<void>
   loadCommands: () => Promise<void>
 
   // Events
@@ -633,6 +635,11 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
     } catch {
       // Silent failure
     }
+  },
+
+  setPermissionMode: async (mode) => {
+    const updated = await window.piDesktop.settings.save({ permissionMode: mode })
+    set({ settings: updated })
   },
 
   loadCommands: async () => {
