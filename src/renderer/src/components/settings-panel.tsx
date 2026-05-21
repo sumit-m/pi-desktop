@@ -1,7 +1,9 @@
 import { useAppStore } from '../store'
 import { useState, useEffect } from 'react'
-import type { AppSettings } from '../../../shared/ipc-contracts'
+import type { AppSettings, PermissionMode } from '../../../shared/ipc-contracts'
 import { Settings, Save, RotateCcw, FolderOpen, Check } from 'lucide-react'
+import { DEFAULT_PERMISSION_MODE } from './permission-mode'
+import { PermissionSelector } from './permission-selector'
 
 export function SettingsPanel(): React.JSX.Element {
   const settings = useAppStore((state) => state.settings)
@@ -13,6 +15,9 @@ export function SettingsPanel(): React.JSX.Element {
   const [fontSize, setFontSize] = useState(settings?.fontSize ?? 14)
   const [showThinking, setShowThinking] = useState(settings?.showThinking ?? true)
   const [autoScroll, setAutoScroll] = useState(settings?.autoScroll ?? true)
+  const [permissionMode, setPermissionMode] = useState<PermissionMode>(
+    settings?.permissionMode ?? DEFAULT_PERMISSION_MODE,
+  )
   const [saved, setSaved] = useState(false)
 
   // Sync from store when settings load
@@ -23,6 +28,7 @@ export function SettingsPanel(): React.JSX.Element {
       setFontSize(settings.fontSize)
       setShowThinking(settings.showThinking)
       setAutoScroll(settings.autoScroll)
+      setPermissionMode(settings.permissionMode)
     }
   }, [settings])
 
@@ -38,6 +44,7 @@ export function SettingsPanel(): React.JSX.Element {
       fontSize,
       showThinking,
       autoScroll,
+      permissionMode,
     }
 
     const result = await window.piDesktop.settings.save(updated)
@@ -61,6 +68,7 @@ export function SettingsPanel(): React.JSX.Element {
       fontSize: 14,
       showThinking: true,
       autoScroll: true,
+      permissionMode: DEFAULT_PERMISSION_MODE,
     }
 
     setPiPath(defaults.piExecutablePath!)
@@ -68,6 +76,7 @@ export function SettingsPanel(): React.JSX.Element {
     setFontSize(defaults.fontSize!)
     setShowThinking(defaults.showThinking!)
     setAutoScroll(defaults.autoScroll!)
+    setPermissionMode(defaults.permissionMode!)
 
     const result = await window.piDesktop.settings.save(defaults)
     applyTheme(result.theme)
@@ -155,6 +164,14 @@ export function SettingsPanel(): React.JSX.Element {
 
         {/* Behavior */}
         <SettingsSection title="Behavior">
+          <SettingsRow label="Permission Mode" description="Default safety mode for PI actions">
+            <PermissionSelector
+              value={permissionMode}
+              onChange={(mode) => setPermissionMode(mode)}
+              compact
+            />
+          </SettingsRow>
+
           <SettingsRow label="Show Thinking" description="Display model thinking blocks in responses">
             <Toggle checked={showThinking} onChange={setShowThinking} />
           </SettingsRow>
