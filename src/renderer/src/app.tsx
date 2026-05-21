@@ -7,6 +7,7 @@ import { Timeline } from './components/timeline'
 import { PackageBrowser } from './components/package-browser'
 import { DiffViewer } from './components/diff-viewer'
 import { ExtensionUiDialog } from './components/extension-ui-dialog'
+import { ReviewRail } from './components/review-rail'
 import { useContextMenu, buildDefaultContextMenu } from './components/context-menu'
 import { usePiEvents, useMenuActions, useInitialize } from './hooks'
 import { useAppStore } from './store'
@@ -50,14 +51,17 @@ export function App(): React.JSX.Element {
       <div className="flex flex-1 overflow-hidden">
         {sidebarOpen && <Sidebar />}
 
-        <main className="flex flex-1 flex-col overflow-hidden">
-          {currentView === 'chat' && <ChatPanel />}
-          {currentView === 'settings' && <SettingsPanel />}
-          {currentView === 'sessions' && <SessionPanel />}
-          {currentView === 'timeline' && <Timeline />}
-          {currentView === 'packages' && <PackageBrowser />}
-          {currentView === 'diff' && <DiffViewer />}
-        </main>
+        <div className="flex min-w-0 flex-1 overflow-hidden">
+          <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            {currentView === 'chat' && <ChatPanel />}
+            {currentView === 'settings' && <SettingsPanel />}
+            {currentView === 'sessions' && <SessionPanel />}
+            {currentView === 'timeline' && <Timeline />}
+            {currentView === 'packages' && <PackageBrowser />}
+            {currentView === 'diff' && <DiffViewer />}
+          </main>
+          {currentView === 'chat' && <ReviewRail />}
+        </div>
       </div>
 
       <StatusBar />
