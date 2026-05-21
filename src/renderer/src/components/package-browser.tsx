@@ -12,6 +12,9 @@ import {
   Store,
   FolderOpen,
   Puzzle,
+  CheckCircle2,
+  AlertCircle,
+  X,
 } from 'lucide-react'
 
 export function PackageBrowser(): React.JSX.Element {
@@ -19,14 +22,18 @@ export function PackageBrowser(): React.JSX.Element {
   const catalogPackages = useAppStore((state) => state.catalogPackages)
   const packageLoading = useAppStore((state) => state.packageLoading)
   const packageSearchQuery = useAppStore((state) => state.packageSearchQuery)
+  const packageNotification = useAppStore((state) => state.packageNotification)
   const loadInstalledPackages = useAppStore((state) => state.loadInstalledPackages)
   const installPackage = useAppStore((state) => state.installPackage)
   const removePackage = useAppStore((state) => state.removePackage)
   const searchCatalog = useAppStore((state) => state.searchCatalog)
   const setPackageSearchQuery = useAppStore((state) => state.setPackageSearchQuery)
+  const clearPackageNotification = useAppStore((state) => state.clearPackageNotification)
   const setCurrentView = useAppStore((state) => state.setCurrentView)
   const installedSkills = useAppStore((state) => state.installedSkills)
   const loadSkills = useAppStore((state) => state.loadSkills)
+
+  const installedNames = new Set(installedPackages.map((p) => p.name))
 
   const [activeTab, setActiveTab] = useState<'installed' | 'catalog' | 'skills'>('installed')
   const [installInput, setInstallInput] = useState('')
@@ -127,6 +134,30 @@ export function PackageBrowser(): React.JSX.Element {
         </div>
       </div>
 
+      {/* Notification banner */}
+      {packageNotification && (
+        <div className={clsx(
+          'flex items-start gap-2 px-4 py-2.5 text-sm border-b',
+          packageNotification.type === 'success'
+            ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-300'
+            : 'bg-red-950/40 border-red-800/50 text-red-300'
+        )}>
+          {packageNotification.type === 'success'
+            ? <CheckCircle2 size={15} className="mt-0.5 shrink-0" />
+            : <AlertCircle size={15} className="mt-0.5 shrink-0" />
+          }
+          <span className="flex-1 text-xs leading-relaxed">{packageNotification.message}</span>
+          <button
+            type="button"
+            onClick={clearPackageNotification}
+            className="shrink-0 rounded p-0.5 opacity-60 hover:opacity-100 transition-opacity"
+            aria-label="Dismiss"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {activeTab === 'installed' && (
@@ -143,6 +174,7 @@ export function PackageBrowser(): React.JSX.Element {
             searchQuery={packageSearchQuery}
             onSearch={handleSearch}
             onInstall={installPackage}
+            installedNames={installedNames}
           />
         )}
         {activeTab === 'skills' && (
@@ -270,12 +302,14 @@ function CatalogTab({
   searchQuery,
   onSearch,
   onInstall,
+  installedNames,
 }: {
   packages: CatalogPackage[]
   loading: boolean
   searchQuery: string
   onSearch: (query: string) => void
   onInstall: (spec: string) => void
+  installedNames: Set<string>
 }): React.JSX.Element {
   return (
     <div>
@@ -362,14 +396,21 @@ function CatalogTab({
                       <ExternalLink size={13} />
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => onInstall(pkg.installCommand)}
-                    className="flex items-center gap-1 rounded bg-blue-600 px-2.5 py-1 text-xs text-white hover:bg-blue-500 transition-colors"
-                  >
-                    <Download size={12} />
-                    Install
-                  </button>
+                  {installedNames.has(pkg.name) ? (
+                    <span className="flex items-center gap-1 rounded bg-emerald-900/30 px-2.5 py-1 text-xs text-emerald-400">
+                      <CheckCircle2 size={12} />
+                      Installed
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onInstall(pkg.installCommand)}
+                      className="flex items-center gap-1 rounded bg-blue-600 px-2.5 py-1 text-xs text-white hover:bg-blue-500 transition-colors"
+                    >
+                      <Download size={12} />
+                      Install
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

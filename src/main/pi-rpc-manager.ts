@@ -53,6 +53,10 @@ const USE_NODE = PI_SCRIPT.endsWith('.js')
 const NODE_BINARY = process.env.NODE || process.env.npm_node_execpath || DEFAULT_NODE_BINARY
 console.log('[PI] Using:', USE_NODE ? `${NODE_BINARY} ${PI_SCRIPT}` : PI_SCRIPT)
 
+// Exported so ipc-handlers can run `pi install/remove/update` with the same
+// binary that was resolved here — Electron's PATH won't have `pi` directly.
+export const PI_CLI = { script: PI_SCRIPT, node: NODE_BINARY, useNode: USE_NODE } as const
+
 const MAX_PENDING_RESPONSES = 64
 const RESPONSE_TIMEOUT_MS = 30_000
 

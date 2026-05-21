@@ -1,5 +1,5 @@
 import { ipcMain, dialog, shell, app, BrowserWindow } from 'electron'
-import { PiRpcManager } from './pi-rpc-manager'
+import { PiRpcManager, PI_CLI } from './pi-rpc-manager'
 import { WorkspaceManager } from './workspace-manager'
 import { SessionTagManager } from './session-tags'
 import { ArchivedSessionsManager } from './archived-sessions'
@@ -874,11 +874,21 @@ function extractVersion(source: string): string | null {
   return match ? match[1] : null
 }
 
-async function installPackage(spec: string, cwd: string): Promise<{ success: boolean; output: string }> {
+// Run a `pi <subcommand>` using the same binary resolved at startup.
+// Electron's child processes don't inherit the user's shell PATH, so bare
+// `execFileAsync('pi', ...)` would fail with ENOENT on most systems.
+async function runPiCli(
+  args: string[],
+  cwd: string,
+  timeout: number
+): Promise<{ success: boolean; output: string }> {
   try {
-    const { stdout, stderr } = await execFileAsync('pi', ['install', spec], {
+    const [cmd, cmdArgs]: [string, string[]] = PI_CLI.useNode
+      ? [PI_CLI.node, [PI_CLI.script, ...args]]
+      : [PI_CLI.script, args]
+    const { stdout, stderr } = await execFileAsync(cmd, cmdArgs, {
       cwd,
-      timeout: 120_000,
+      timeout,
       env: { ...process.env },
     })
     return { success: true, output: stdout + stderr }
@@ -888,40 +898,18 @@ async function installPackage(spec: string, cwd: string): Promise<{ success: boo
       output: err instanceof Error ? err.message : String(err),
     }
   }
+}
+
+async function installPackage(spec: string, cwd: string): Promise<{ success: boolean; output: string }> {
+  return runPiCli(['install', spec], cwd, 120_000)
 }
 
 async function removePackage(spec: string, cwd: string): Promise<{ success: boolean; output: string }> {
-  try {
-    const { stdout, stderr } = await execFileAsync('pi', ['remove', spec], {
-      cwd,
-      timeout: 30_000,
-      env: { ...process.env },
-    })
-    return { success: true, output: stdout + stderr }
-  } catch (err) {
-    return {
-      success: false,
-      output: err instanceof Error ? err.message : String(err),
-    }
-  }
+  return runPiCli(['remove', spec], cwd, 30_000)
 }
 
 async function updatePackage(spec: string | undefined, cwd: string): Promise<{ success: boolean; output: string }> {
-  try {
-    const args = ['update']
-    if (spec) args.push(spec)
-    const { stdout, stderr } = await execFileAsync('pi', args, {
-      cwd,
-      timeout: 120_000,
-      env: { ...process.env },
-    })
-    return { success: true, output: stdout + stderr }
-  } catch (err) {
-    return {
-      success: false,
-      output: err instanceof Error ? err.message : String(err),
-    }
-  }
+  return runPiCli(spec ? ['update', spec] : ['update'], cwd, 120_000)
 }
 
 // ─── Package Catalog ─────────────────────────────────────────────────────────
@@ -981,7 +969,7 @@ async function fetchPackageCatalog(query?: string, page = 0): Promise<CatalogPac
         updatedAt,
         npmUrl,
         repoUrl,
-        installCommand: `pi install npm:${name}`,
+        installCommand: `npm:${name}`,
       })
     }
 
