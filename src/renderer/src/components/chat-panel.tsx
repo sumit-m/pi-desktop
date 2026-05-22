@@ -112,7 +112,7 @@ export function ChatPanel(): React.JSX.Element {
         {showSidePanel && (
           <div className="w-72 border-l border-neutral-800 flex flex-col overflow-hidden bg-neutral-950">
             {sidePanel === 'files' && <FileTree />}
-            {sidePanel === 'diff' && <DiffViewer />}
+            {sidePanel === 'diff' && <DiffViewer onClose={() => setSidePanel(null)} />}
             {!sidePanel && selectedFile && <FilePreview />}
             <button
               onClick={() => {

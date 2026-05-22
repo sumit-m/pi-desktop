@@ -28,7 +28,11 @@ interface DiffFileBlock {
   hunks: DiffLine[][]
 }
 
-export function DiffViewer(): React.JSX.Element {
+interface DiffViewerProps {
+  onClose?: () => void
+}
+
+export function DiffViewer({ onClose }: DiffViewerProps = {}): React.JSX.Element {
   const [diffText, setDiffText] = useState<string | null>(null)
   const [files, setFiles] = useState<DiffFileBlock[]>([])
   const [loading, setLoading] = useState(true)
@@ -95,7 +99,13 @@ export function DiffViewer(): React.JSX.Element {
             <RefreshCw size={14} />
           </button>
           <button
-            onClick={() => setCurrentView('chat')}
+            onClick={() => {
+              if (onClose) {
+                onClose()
+              } else {
+                setCurrentView('chat')
+              }
+            }}
             className="rounded p-1.5 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300 transition-colors"
           >
             <X size={14} />
