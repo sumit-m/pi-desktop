@@ -4,8 +4,6 @@ A desktop GUI for the [PI coding agent](https://pi.dev). Chat, manage projects, 
 
 Still in alpha. Repo is private while we get builds sorted.
 
-**Last updated:** 5/21/2026
-
 ## What it does
 
 - Streaming chat with thinking blocks and tool use
