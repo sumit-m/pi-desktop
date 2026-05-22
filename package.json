@@ -101,7 +101,7 @@
       "synopsis": "Desktop GUI for the PI coding agent",
       "description": "An Electron desktop application that provides a GUI frontend for the PI coding agent.",
       "maintainer": "PI Desktop GUI Contributors",
-      "artifactName": "PI-Desktop-${os}-${arch}.${ext}"
+      "artifactName": "PI-Desktop-${version}-${os}-${arch}.${ext}"
     },
     "mac": {
       "target": [
@@ -119,7 +119,8 @@
         "nsis",
         "portable"
       ],
-      "icon": "resources/icons/icon.ico"
+      "icon": "resources/icons/icon.ico",
+      "artifactName": "PI-Desktop-${version}-${os}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
