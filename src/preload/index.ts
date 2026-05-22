@@ -14,6 +14,9 @@ import type {
   FileTreeNode,
   FileSearchResult,
   GitFileStatus,
+  TerminalExitEvent,
+  TerminalStartOptions,
+  TerminalStartResult,
 } from '../shared/ipc-contracts'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 
@@ -138,6 +141,15 @@ interface PiDesktopAPI {
     openExternal(url: string): Promise<void>
   }
 
+  terminal: {
+    start(options?: TerminalStartOptions): Promise<TerminalStartResult>
+    input(data: string): Promise<void>
+    resize(cols: number, rows: number): Promise<void>
+    stop(): Promise<void>
+    onData(callback: (data: string) => void): () => void
+    onExit(callback: (event: TerminalExitEvent) => void): () => void
+  }
+
   // Extension UI responses
   ui: {
     respondSelect(id: string, value: string): void
@@ -260,6 +272,23 @@ const api: PiDesktopAPI = {
     openDialog: (options) => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_OPEN_DIALOG, options),
     getPath: (name) => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_GET_PATH, name),
     openExternal: (url) => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_OPEN_EXTERNAL, url),
+  },
+
+  terminal: {
+    start: (options) => ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_START, options),
+    input: (data) => ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_INPUT, data),
+    resize: (cols, rows) => ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_RESIZE, { cols, rows }),
+    stop: () => ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_STOP),
+    onData: (callback) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: string) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.EVENT_TERMINAL_DATA, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.EVENT_TERMINAL_DATA, handler)
+    },
+    onExit: (callback) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: TerminalExitEvent) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.EVENT_TERMINAL_EXIT, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.EVENT_TERMINAL_EXIT, handler)
+    },
   },
 
   ui: {

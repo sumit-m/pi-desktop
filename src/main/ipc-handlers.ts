@@ -3,6 +3,7 @@ import { PiRpcManager, PI_CLI } from './pi-rpc-manager'
 import { WorkspaceManager } from './workspace-manager'
 import { SessionTagManager } from './session-tags'
 import { ArchivedSessionsManager } from './archived-sessions'
+import { TerminalService } from './terminal-service'
 import type {
   PiStartOptions,
   PiRpcEvent,
@@ -90,6 +91,7 @@ async function deleteSessionFile(sessionPath: string): Promise<SessionDeleteResu
 export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
   const tagManager = new SessionTagManager()
   const archivedSessions = new ArchivedSessionsManager()
+  const terminalService = new TerminalService()
 
   // Helper: get PI manager for active workspace
   function getActivePi(): PiRpcManager {
@@ -192,6 +194,37 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
 
   ipcMain.handle(IPC_CHANNELS.PI_ABORT_BASH, async () => {
     return getActivePi().sendCommand({ type: 'abort_bash' })
+  })
+
+  // ─── Terminal ──────────────────────────────────────────────────────────
+
+  ipcMain.handle(IPC_CHANNELS.TERMINAL_START, async (_event, options: unknown) => {
+    const opts = isObject(options) ? options : {}
+    return terminalService.start(
+      {
+        cwd: isString(opts.cwd) ? opts.cwd : workspaceManager.getActiveWorkspace()?.path,
+        cols: typeof opts.cols === 'number' ? opts.cols : undefined,
+        rows: typeof opts.rows === 'number' ? opts.rows : undefined,
+      },
+      (data) => broadcast(IPC_CHANNELS.EVENT_TERMINAL_DATA, data),
+      (event) => broadcast(IPC_CHANNELS.EVENT_TERMINAL_EXIT, event)
+    )
+  })
+
+  ipcMain.handle(IPC_CHANNELS.TERMINAL_INPUT, async (_event, data: unknown) => {
+    if (!isString(data)) throw new Error('terminal input must be a string')
+    terminalService.write(data)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.TERMINAL_RESIZE, async (_event, size: unknown) => {
+    if (!isObject(size)) throw new Error('terminal size must be an object')
+    const cols = typeof size.cols === 'number' ? size.cols : 80
+    const rows = typeof size.rows === 'number' ? size.rows : 24
+    terminalService.resize(cols, rows)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.TERMINAL_STOP, async () => {
+    terminalService.stop()
   })
 
   // ─── Session Management ─────────────────────────────────────────────────

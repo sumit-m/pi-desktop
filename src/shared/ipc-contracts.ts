@@ -95,6 +95,12 @@ export const IPC_CHANNELS = {
   GIT_STATUS: 'git:status',
   GIT_BRANCH: 'git:branch',
 
+  // Terminal
+  TERMINAL_START: 'terminal:start',
+  TERMINAL_INPUT: 'terminal:input',
+  TERMINAL_RESIZE: 'terminal:resize',
+  TERMINAL_STOP: 'terminal:stop',
+
   // Session tags
   TAG_GET: 'tag:get',
   TAG_SET: 'tag:set',
@@ -105,6 +111,8 @@ export const IPC_CHANNELS = {
 
   // Events (main → renderer)
   EVENT_PI: 'event:pi',
+  EVENT_TERMINAL_DATA: 'event:terminal-data',
+  EVENT_TERMINAL_EXIT: 'event:terminal-exit',
 } as const
 
 // ─── PI Process Types ───────────────────────────────────────────────────────
@@ -124,6 +132,25 @@ export interface PiStartOptions {
   sessionPath?: string
   noSession?: boolean
   args?: string[]
+}
+
+// ─── Terminal Types ─────────────────────────────────────────────────────────
+
+export interface TerminalStartOptions {
+  cwd?: string
+  cols?: number
+  rows?: number
+}
+
+export interface TerminalStartResult {
+  pid: number
+  shell: string
+  cwd: string
+}
+
+export interface TerminalExitEvent {
+  exitCode: number
+  signal?: number
 }
 
 // ─── PI RPC Event Types (subset used by renderer) ───────────────────────────
