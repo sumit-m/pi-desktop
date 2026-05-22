@@ -4,14 +4,32 @@ A desktop GUI for the [PI coding agent](https://pi.dev). Chat, manage projects, 
 
 Still in alpha. Repo is private while we get builds sorted.
 
+**Last updated:** 5/21/2026
+
 ## What it does
 
 - Streaming chat with thinking blocks and tool use
 - Multiple workspaces, each with its own PI process and sessions
+- Review rail with permissions, approvals, changed files, and session status
 - File tree, diff viewer, file search
 - Terminal with ANSI colors
 - Package browser connected to pi.dev/packages
 - Session tags, model switching, themes (Dark, Light, Nord, Gruvbox)
+
+## Review rail
+
+The right-side Review rail keeps safety and working-tree state visible while you chat with PI.
+
+Changed files use readable status badges:
+
+| Badge | Meaning |
+|-------|---------|
+| `NEW` | Untracked new file |
+| `MOD` | Existing tracked file was modified |
+| `DEL` | Tracked file was deleted |
+| `ADD` | New file staged in git |
+| `STG` | Modified file staged in git |
+| `REN` | File was renamed |
 
 ## Getting started
 
