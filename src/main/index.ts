@@ -29,10 +29,17 @@ const PRELOAD_PATH = join(__dirname, '../preload/index.js')
 
 // In dev: resources/ sits at the project root (app.getAppPath()).
 // In packaged: extraResources config copies resources/ into process.resourcesPath/resources/.
-const RESOURCES_BASE = app.isPackaged
-  ? join(process.resourcesPath, 'resources')
-  : join(app.getAppPath(), 'resources')
-const APP_ICON_PATH = join(RESOURCES_BASE, 'icons', 'icon.png')
+// Computed lazily: `app` is undefined at module-eval time under electron-vite preview,
+// so reading `app.isPackaged` at top level crashes before whenReady().
+let cachedAppIconPath: string | null = null
+function getAppIconPath(): string {
+  if (cachedAppIconPath !== null) return cachedAppIconPath
+  const base = app.isPackaged
+    ? join(process.resourcesPath, 'resources')
+    : join(app.getAppPath(), 'resources')
+  cachedAppIconPath = join(base, 'icons', 'icon.png')
+  return cachedAppIconPath
+}
 
 // ─── Workspace Manager (singleton) ───────────────────────────────────────────
 
@@ -48,7 +55,7 @@ function createMainWindow(): BrowserWindow {
     minHeight: MIN_WINDOW_HEIGHT,
     title: 'PI Desktop',
     backgroundColor: '#0a0a0a',
-    icon: APP_ICON_PATH,
+    icon: getAppIconPath(),
     show: false,
     webPreferences: {
       preload: PRELOAD_PATH,
@@ -172,7 +179,7 @@ function createApplicationMenu(): void {
 app.whenReady().then(async () => {
   // Set macOS dock icon (no-op on other platforms)
   if (process.platform === 'darwin' && app.dock) {
-    app.dock.setIcon(nativeImage.createFromPath(APP_ICON_PATH))
+    app.dock.setIcon(nativeImage.createFromPath(getAppIconPath()))
   }
 
   // Initialize workspace manager
