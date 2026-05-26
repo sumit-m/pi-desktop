@@ -15,8 +15,6 @@ import {
   X,
 } from 'lucide-react'
 
-type SidePanel = 'files' | 'diff' | null
-
 export function ChatPanel(): React.JSX.Element {
   const messages = useAppStore((state) => state.messages)
   const isStreaming = useAppStore((state) => state.isStreaming)
@@ -29,7 +27,10 @@ export function ChatPanel(): React.JSX.Element {
   const toggleFileSearch = useAppStore((state) => state.toggleFileSearch)
   const selectedFile = useAppStore((state) => state.selectedFile)
 
-  const [sidePanel, setSidePanel] = useState<SidePanel>(null)
+  // sidePanel lives in the store so it survives view switches (e.g. Settings
+  // round-trip). Widths stay local — resetting them on remount is benign.
+  const sidePanel = useAppStore((state) => state.chatSidePanel)
+  const setSidePanel = useAppStore((state) => state.setChatSidePanel)
   const [sidePanelWidth, setSidePanelWidth] = useState(640)
   const [filePaneWidth, setFilePaneWidth] = useState(280)
 

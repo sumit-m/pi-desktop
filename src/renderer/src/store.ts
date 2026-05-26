@@ -74,6 +74,10 @@ interface AppState {
 
   // UI
   currentView: 'chat' | 'settings' | 'sessions' | 'timeline' | 'packages' | 'diff'
+  // Chat side panel: which secondary view (file tree or diff) is open in
+  // the chat workspace. Lifted into the store so it survives navigating
+  // away from chat (e.g. into Settings) and back.
+  chatSidePanel: 'files' | 'diff' | null
   sidebarOpen: boolean
   terminalOpen: boolean
   settings: AppSettings | null
@@ -151,6 +155,7 @@ interface AppActions {
 
   // UI
   setCurrentView: (view: AppState['currentView']) => void
+  setChatSidePanel: (panel: AppState['chatSidePanel']) => void
   toggleSidebar: () => void
   toggleTerminal: () => void
   loadSettings: () => Promise<void>
@@ -273,6 +278,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   pendingFollowUp: [],
 
   currentView: 'chat',
+  chatSidePanel: null,
   sidebarOpen: true,
   terminalOpen: false,
   settings: null,
@@ -604,6 +610,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   // ─── UI ───────────────────────────────────────────────────────────────
 
   setCurrentView: (view) => set({ currentView: view }),
+  setChatSidePanel: (panel) => set({ chatSidePanel: panel }),
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
 
