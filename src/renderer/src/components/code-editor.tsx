@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { basicSetup, EditorView } from 'codemirror'
-import { syntaxHighlighting } from '@codemirror/language'
-import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark'
+import { oneDark } from '@codemirror/theme-one-dark'
 import { getCodeEditorLanguageExtensions } from './code-editor-language'
 
 interface CodeEditorProps {
@@ -36,8 +35,8 @@ export function CodeEditor({
       parent: containerRef.current,
       extensions: [
         basicSetup,
-        syntaxHighlighting(oneDarkHighlightStyle, { fallback: true }),
         ...getCodeEditorLanguageExtensions(filePath),
+        oneDark,
         EditorView.editable.of(!readOnly),
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
@@ -49,7 +48,6 @@ export function CodeEditor({
           '&': {
             height: '100%',
             backgroundColor: 'var(--color-bg-primary)',
-            color: 'var(--color-text-primary)',
             fontSize: '12px',
           },
           '.cm-editor': {
@@ -67,10 +65,13 @@ export function CodeEditor({
             borderRight: '1px solid var(--color-border)',
           },
           '.cm-activeLine': {
-            backgroundColor: 'var(--color-bg-secondary)',
+            backgroundColor: 'transparent',
           },
           '.cm-activeLineGutter': {
-            backgroundColor: 'var(--color-bg-secondary)',
+            backgroundColor: 'transparent',
+          },
+          '.cm-selectionMatch': {
+            backgroundColor: 'transparent',
           },
           '&.cm-focused': {
             outline: 'none',
