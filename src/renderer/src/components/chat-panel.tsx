@@ -173,6 +173,8 @@ export function ChatPanel(): React.JSX.Element {
 function ResizeHandle({ onResize }: { onResize: (delta: number) => void }): React.JSX.Element {
   const handleMouseDown = (event: React.MouseEvent) => {
     event.preventDefault()
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
     let lastX = event.clientX
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
@@ -181,6 +183,8 @@ function ResizeHandle({ onResize }: { onResize: (delta: number) => void }): Reac
     }
 
     const handleMouseUp = () => {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
@@ -192,8 +196,11 @@ function ResizeHandle({ onResize }: { onResize: (delta: number) => void }): Reac
   return (
     <div
       onMouseDown={handleMouseDown}
-      className="w-1 cursor-col-resize bg-neutral-900 transition-colors hover:bg-blue-500/60"
-    />
+      className="group flex w-2 shrink-0 cursor-col-resize items-stretch justify-center bg-neutral-950 transition-colors hover:bg-neutral-800"
+      title="Drag to resize"
+    >
+      <div className="w-px bg-neutral-700 transition-colors group-hover:bg-blue-400" />
+    </div>
   )
 }
 
