@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useAppStore } from '../store'
 import type { FileTreeNode, GitFileStatus, FileSearchResult } from '../../../shared/ipc-contracts'
+import { CodeEditor } from './code-editor'
 import { clsx } from 'clsx'
 import {
   FolderOpen,
@@ -374,9 +375,11 @@ export function FilePreview(): React.JSX.Element | null {
         ) : error ? (
           <div className="p-4 text-xs text-red-400">{error}</div>
         ) : content !== null ? (
-          <pre className="p-4 text-xs text-neutral-300 font-mono whitespace-pre-wrap break-words leading-relaxed">
-            {content}
-          </pre>
+          <CodeEditor
+            filePath={selectedFile.relativePath}
+            value={content}
+            readOnly
+          />
         ) : null}
       </div>
     </div>
