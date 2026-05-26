@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { basicSetup, EditorView } from 'codemirror'
-import { oneDark } from '@codemirror/theme-one-dark'
+import { syntaxHighlighting } from '@codemirror/language'
 import { getCodeEditorLanguageExtensions } from './code-editor-language'
+import { themedHighlightStyle } from './code-editor-highlight'
 
 interface CodeEditorProps {
   filePath: string
@@ -36,7 +37,7 @@ export function CodeEditor({
       extensions: [
         basicSetup,
         ...getCodeEditorLanguageExtensions(filePath),
-        oneDark,
+        syntaxHighlighting(themedHighlightStyle, { fallback: true }),
         EditorView.editable.of(!readOnly),
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
@@ -48,6 +49,7 @@ export function CodeEditor({
           '&': {
             height: '100%',
             backgroundColor: 'var(--color-bg-primary)',
+            color: 'var(--color-text-primary)',
             fontSize: '12px',
           },
           '.cm-editor': {
@@ -65,18 +67,21 @@ export function CodeEditor({
             borderRight: '1px solid var(--color-border)',
           },
           '.cm-activeLine': {
-            backgroundColor: 'transparent',
+            backgroundColor: 'var(--cm-active-line-bg)',
           },
           '.cm-activeLineGutter': {
-            backgroundColor: 'transparent',
+            backgroundColor: 'var(--cm-active-line-bg)',
           },
           '.cm-selectionMatch': {
-            backgroundColor: 'transparent',
+            backgroundColor: 'var(--cm-selection-match-bg)',
+          },
+          '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': {
+            backgroundColor: 'var(--cm-selection-bg)',
           },
           '&.cm-focused': {
             outline: 'none',
           },
-        }, { dark: true }),
+        }),
       ],
     })
     viewRef.current = view
