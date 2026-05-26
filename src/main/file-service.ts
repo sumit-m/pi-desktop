@@ -1,6 +1,6 @@
 import { type FSWatcher } from 'chokidar'
 import { readdir, stat, readFile, writeFile } from 'fs/promises'
-import { join, extname, basename, resolve } from 'path'
+import { join, extname, basename, resolve, relative } from 'path'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 
@@ -257,8 +257,9 @@ export class FileService {
     const fullPath = filePath.startsWith('/') ? filePath : join(this.workspacePath, filePath)
     const resolvedWorkspace = resolve(this.workspacePath)
     const resolvedFile = resolve(fullPath)
+    const rel = relative(resolvedWorkspace, resolvedFile)
 
-    if (resolvedFile !== resolvedWorkspace && !resolvedFile.startsWith(`${resolvedWorkspace}/`)) {
+    if (rel.startsWith('..') || rel === '') {
       throw new Error('Refusing to write outside the active workspace')
     }
 

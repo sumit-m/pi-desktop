@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import { basicSetup, EditorView } from 'codemirror'
-import { EditorState } from '@codemirror/state'
 import { getCodeEditorLanguageExtensions } from './code-editor-language'
 
 interface CodeEditorProps {
@@ -27,13 +26,15 @@ export function CodeEditor({
   useEffect(() => {
     if (!containerRef.current) return
 
+    // Clear any leftover DOM from a previous view before mounting the new one
+    containerRef.current.innerHTML = ''
+
     const view = new EditorView({
       doc: value,
       parent: containerRef.current,
       extensions: [
         basicSetup,
         ...getCodeEditorLanguageExtensions(filePath),
-        EditorState.readOnly.of(readOnly),
         EditorView.editable.of(!readOnly),
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {

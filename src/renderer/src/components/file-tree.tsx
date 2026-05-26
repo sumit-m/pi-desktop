@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useAppStore } from '../store'
 import type { FileTreeNode, GitFileStatus, FileSearchResult } from '../../../shared/ipc-contracts'
 import { CodeEditor } from './code-editor'
@@ -329,6 +329,8 @@ export function FilePreview(): React.JSX.Element | null {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDirty = content !== null && savedContent !== null && content !== savedContent
 
   useEffect(() => {
@@ -338,22 +340,47 @@ export function FilePreview(): React.JSX.Element | null {
       return
     }
 
+    let cancelled = false
+
     const load = async () => {
       setLoading(true)
       setError(null)
       try {
         const data = await window.piDesktop.files.read(selectedFile.path)
-        setContent(data)
-        setSavedContent(data)
+        if (!cancelled) {
+          setContent(data)
+          setSavedContent(data)
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to read file')
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to read file')
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
     load()
+
+    return () => {
+      cancelled = true
+    }
   }, [selectedFile])
+
+  // Cleanup pending debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current !== null) clearTimeout(debounceRef.current)
+    }
+  }, [])
+
+  const handleChange = useCallback((value: string) => {
+    if (debounceRef.current !== null) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      setContent(value)
+      debounceRef.current = null
+    }, 150)
+  }, [])
 
   if (!selectedFile) return null
 
@@ -362,9 +389,12 @@ export function FilePreview(): React.JSX.Element | null {
 
     setSaving(true)
     setError(null)
+    setSaveSuccess(false)
     try {
       await window.piDesktop.files.write(selectedFile.path, content)
       setSavedContent(content)
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 2000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save file')
     } finally {
@@ -385,11 +415,15 @@ export function FilePreview(): React.JSX.Element | null {
         <div className="flex items-center gap-2 min-w-0">
           <FileText size={14} className="shrink-0 text-neutral-500" />
           <span className="text-xs text-neutral-300 truncate">{selectedFile.relativePath}</span>
-          {isDirty && (
+          {saveSuccess ? (
+            <span className="rounded bg-green-900/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-green-400">
+              saved
+            </span>
+          ) : isDirty ? (
             <span className="rounded bg-yellow-900/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-yellow-400">
               modified
             </span>
-          )}
+          ) : null}
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -431,7 +465,7 @@ export function FilePreview(): React.JSX.Element | null {
             filePath={selectedFile.relativePath}
             value={content}
             readOnly={false}
-            onChange={setContent}
+            onChange={handleChange}
           />
         ) : null}
       </div>
