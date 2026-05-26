@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { basicSetup, EditorView } from 'codemirror'
+import { syntaxHighlighting } from '@codemirror/language'
+import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark'
 import { getCodeEditorLanguageExtensions } from './code-editor-language'
 
 interface CodeEditorProps {
@@ -34,6 +36,7 @@ export function CodeEditor({
       parent: containerRef.current,
       extensions: [
         basicSetup,
+        syntaxHighlighting(oneDarkHighlightStyle, { fallback: true }),
         ...getCodeEditorLanguageExtensions(filePath),
         EditorView.editable.of(!readOnly),
         EditorView.lineWrapping,
