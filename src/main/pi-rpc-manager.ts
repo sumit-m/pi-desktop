@@ -1,5 +1,6 @@
 import { ChildProcess, SpawnOptions, spawn } from 'child_process'
 import { existsSync } from 'fs'
+import { join, delimiter as PATH_DELIMITER } from 'path'
 import { EventEmitter } from 'events'
 import { StringDecoder } from 'string_decoder'
 import type {
@@ -28,34 +29,123 @@ const MODE_FLAG = '--mode'
 const PROVIDER_FLAG = '--provider'
 const MODEL_FLAG = '--model'
 const SESSION_FLAG = '--session'
-const PI_FALLBACK_BINARY = 'pi'
-const DEFAULT_NODE_BINARY = '/usr/bin/node'
+const IS_WINDOWS = process.platform === 'win32'
+const PI_FALLBACK_BINARY = IS_WINDOWS ? 'pi.cmd' : 'pi'
 const SPAWN_STARTUP_TIMEOUT_MS = 15_000
 const FORCE_KILL_TIMEOUT_MS = 3_000
+const PI_PACKAGE = '@earendil-works/pi-coding-agent'
+const PI_CLI_REL = join('node_modules', PI_PACKAGE, 'dist', 'cli.js')
 
+/**
+ * Search PATH for an executable. Returns the absolute path or null.
+ * On Windows, also tries PATHEXT extensions (.cmd, .exe, .ps1, .bat).
+ */
+function whichInPath(name: string): string | null {
+  const pathDirs = (process.env.PATH ?? '').split(PATH_DELIMITER).filter(Boolean)
+  const exts = IS_WINDOWS
+    ? (process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';').map((e) => e.toLowerCase())
+    : ['']
+  for (const dir of pathDirs) {
+    for (const ext of exts) {
+      const candidate = join(dir, name + ext)
+      if (existsSync(candidate)) return candidate
+    }
+  }
+  return null
+}
+
+/**
+ * Locate the PI coding agent CLI. Prefers the JS entry point so we can run
+ * it with our own Node binary (most robust). Falls back to whichever shim
+ * the OS provides if the JS file can't be found.
+ */
 function findPiBinary(): string {
   const home = process.env.HOME ?? process.env.USERPROFILE ?? ''
-  const candidates = [
-    `${home}/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js`,
-    `${home}/.npm-global/bin/pi`,
-    '/usr/local/bin/pi',
-    '/usr/bin/pi',
-    `${home}/.local/bin/pi`,
-  ]
+  const appData = process.env.APPDATA ?? ''
+  const localAppData = process.env.LOCALAPPDATA ?? ''
+  const programFiles = process.env.ProgramFiles ?? 'C:\\Program Files'
+
+  const candidates: string[] = []
+
+  if (IS_WINDOWS) {
+    // npm on Windows installs globals under %APPDATA%\npm by default
+    if (appData) candidates.push(join(appData, 'npm', PI_CLI_REL))
+    if (localAppData) candidates.push(join(localAppData, 'npm', PI_CLI_REL))
+    candidates.push(join(programFiles, 'nodejs', PI_CLI_REL))
+    // pnpm / fnm / volta global stores
+    if (appData) candidates.push(join(appData, 'npm', 'pi.cmd'))
+    if (localAppData) candidates.push(join(localAppData, 'npm', 'pi.cmd'))
+  } else {
+    // Linux / macOS
+    candidates.push(join(home, '.npm-global', PI_CLI_REL))
+    candidates.push(join(home, '.npm-global', 'bin', 'pi'))
+    candidates.push(join('/usr/local/lib', PI_CLI_REL))
+    candidates.push(join('/usr/lib', PI_CLI_REL))
+    candidates.push('/usr/local/bin/pi')
+    candidates.push('/usr/bin/pi')
+    candidates.push(join(home, '.local/bin/pi'))
+  }
+
   for (const candidate of candidates) {
     if (existsSync(candidate)) return candidate
   }
+
+  // Last resort: search PATH for the shim
+  const fromPath = whichInPath(IS_WINDOWS ? 'pi' : 'pi')
+  if (fromPath) return fromPath
+
   return PI_FALLBACK_BINARY
+}
+
+/**
+ * Find a Node binary to run the PI .js script with. Searches NODE env,
+ * npm_node_execpath (set when running under npm), Electron's own process,
+ * common install paths, and PATH.
+ */
+function findNodeBinary(): string {
+  if (process.env.NODE && existsSync(process.env.NODE)) return process.env.NODE
+  if (process.env.npm_node_execpath && existsSync(process.env.npm_node_execpath)) {
+    return process.env.npm_node_execpath
+  }
+
+  if (IS_WINDOWS) {
+    const programFiles = process.env.ProgramFiles ?? 'C:\\Program Files'
+    const programFilesX86 = process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)'
+    const localAppData = process.env.LOCALAPPDATA ?? ''
+    const candidates = [
+      join(programFiles, 'nodejs', 'node.exe'),
+      join(programFilesX86, 'nodejs', 'node.exe'),
+      localAppData ? join(localAppData, 'fnm_multishells', 'node.exe') : '',
+    ].filter(Boolean)
+    for (const c of candidates) if (existsSync(c)) return c
+    const fromPath = whichInPath('node')
+    if (fromPath) return fromPath
+    return 'node.exe'
+  }
+
+  for (const c of ['/usr/bin/node', '/usr/local/bin/node', '/opt/homebrew/bin/node']) {
+    if (existsSync(c)) return c
+  }
+  const fromPath = whichInPath('node')
+  if (fromPath) return fromPath
+  return 'node'
 }
 
 const PI_SCRIPT = findPiBinary()
 const USE_NODE = PI_SCRIPT.endsWith('.js')
-const NODE_BINARY = process.env.NODE || process.env.npm_node_execpath || DEFAULT_NODE_BINARY
-console.log('[PI] Using:', USE_NODE ? `${NODE_BINARY} ${PI_SCRIPT}` : PI_SCRIPT)
+const NODE_BINARY = findNodeBinary()
+// On Windows, .cmd/.bat shims require shell:true to be invoked via spawn.
+const NEEDS_SHELL = IS_WINDOWS && !USE_NODE && /\.(cmd|bat|ps1)$/i.test(PI_SCRIPT)
+console.log('[PI] Using:', USE_NODE ? `${NODE_BINARY} ${PI_SCRIPT}` : PI_SCRIPT, NEEDS_SHELL ? '(via shell)' : '')
 
 // Exported so ipc-handlers can run `pi install/remove/update` with the same
 // binary that was resolved here — Electron's PATH won't have `pi` directly.
-export const PI_CLI = { script: PI_SCRIPT, node: NODE_BINARY, useNode: USE_NODE } as const
+export const PI_CLI = {
+  script: PI_SCRIPT,
+  node: NODE_BINARY,
+  useNode: USE_NODE,
+  needsShell: NEEDS_SHELL,
+} as const
 
 const MAX_PENDING_RESPONSES = 64
 const RESPONSE_TIMEOUT_MS = 30_000
@@ -112,6 +202,9 @@ export class PiRpcManager extends EventEmitter {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: options.cwd,
         env: { ...process.env },
+        // .cmd/.bat shims on Windows can't be invoked directly from spawn —
+        // they need the cmd.exe interpreter via shell:true.
+        shell: NEEDS_SHELL,
       }
 
       console.log('[PI] Spawning with cwd:', options.cwd)

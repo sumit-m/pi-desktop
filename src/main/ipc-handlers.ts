@@ -932,6 +932,8 @@ async function runPiCli(
       cwd,
       timeout,
       env: { ...process.env },
+      // Windows .cmd/.bat shims require shell:true to be invoked.
+      shell: PI_CLI.needsShell,
     })
     return { success: true, output: stdout + stderr }
   } catch (err) {
