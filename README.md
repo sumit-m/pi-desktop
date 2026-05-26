@@ -9,7 +9,7 @@ Still in alpha — expect rough edges.
 - Streaming chat with thinking blocks and tool use
 - Multiple workspaces, each with its own PI process and sessions
 - Review rail with permissions, approvals, changed files, and session status
-- File tree, diff viewer, file search
+- File tree, code editor (CodeMirror 6 with syntax highlighting), diff viewer, file search
 - Terminal with ANSI colors
 - Package browser connected to pi.dev/packages
 - Session tags, model switching, themes (Dark, Light, Nord, Gruvbox)
