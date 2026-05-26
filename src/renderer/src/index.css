@@ -345,25 +345,28 @@
     --color-app-text-secondary: #D8DEE9;
     --color-app-text-muted:     #9599A3;
 
-    /* CodeMirror syntax tokens (Nord — Kate-inspired vivid palette) */
-    --cm-keyword:  #B48EAD;  /* Aurora purple */
-    --cm-string:   #A3BE8C;  /* Aurora green */
-    --cm-comment:  #7B88A1;  /* Polar night light */
-    --cm-function: #88C0D0;  /* Frost cyan */
-    --cm-type:     #EBCB8B;  /* Aurora yellow */
-    --cm-number:   #D08770;  /* Aurora orange */
-    --cm-operator: #81A1C1;  /* Frost blue */
-    --cm-property: #D08770;  /* Aurora orange — also inline code */
-    --cm-tag:      #BF616A;  /* Aurora red */
-    --cm-variable: #D8DEE9;  /* Snow storm */
-    --cm-constant: #D08770;  /* Aurora orange — list bullets, atoms, bools */
-    --cm-heading:  #B48EAD;  /* Aurora purple — Kate-style */
-    --cm-link:     #A3BE8C;  /* Aurora green — link text */
-    --cm-list:     #D08770;  /* Aurora orange — list markers */
-    --cm-quote:    #7B88A1;  /* Polar night light */
-    --cm-meta:     #D8DEE9;  /* Snow storm */
-    --cm-mark:     #B48EAD;  /* Aurora purple — matches heading */
-    --cm-invalid:  #BF616A;  /* Aurora red */
+    /* CodeMirror syntax tokens (Nord-themed chrome, vivid syntax colors).
+       Pure Nord Aurora colors are too desaturated for syntax highlighting;
+       we use brighter Material/Tokyo-Night-inspired hues in the same cool
+       family so the editor still feels Nord-adjacent. */
+    --cm-keyword:  #C792EA;  /* vivid purple */
+    --cm-string:   #C3E88D;  /* vivid green */
+    --cm-comment:  #7B88A1;  /* polar night light — visible gray */
+    --cm-function: #82AAFF;  /* vivid blue */
+    --cm-type:     #FFCB6B;  /* vivid yellow */
+    --cm-number:   #F78C6C;  /* vivid orange */
+    --cm-operator: #89DDFF;  /* vivid cyan */
+    --cm-property: #F78C6C;  /* vivid orange — inline code */
+    --cm-tag:      #F07178;  /* vivid red-pink */
+    --cm-variable: #EEFFFF;  /* near-white */
+    --cm-constant: #F78C6C;  /* vivid orange — atoms, list bullets */
+    --cm-heading:  #C792EA;  /* vivid purple — Kate-style */
+    --cm-link:     #C3E88D;  /* vivid green — link text */
+    --cm-list:     #F78C6C;  /* vivid orange — list markers */
+    --cm-quote:    #7B88A1;  /* polar night light */
+    --cm-meta:     #B2CCD6;  /* pale cyan */
+    --cm-mark:     #C792EA;  /* vivid purple — matches heading */
+    --cm-invalid:  #F07178;  /* vivid red */
     --cm-active-line-bg:     rgba(216, 222, 233, 0.05);
     --cm-selection-bg:       rgba(94, 129, 172, 0.40);
     --cm-selection-match-bg: rgba(216, 222, 233, 0.08);
