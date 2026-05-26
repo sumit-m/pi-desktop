@@ -14,6 +14,8 @@ import {
   FileText,
   GitBranch,
   Loader2,
+  Save,
+  RotateCcw,
 } from 'lucide-react'
 
 // ─── File Tree ───────────────────────────────────────────────────────────────
@@ -323,12 +325,16 @@ export function FileSearch({ isOpen, onClose }: FileSearchProps): React.JSX.Elem
 export function FilePreview(): React.JSX.Element | null {
   const selectedFile = useAppStore((state) => state.selectedFile)
   const [content, setContent] = useState<string | null>(null)
+  const [savedContent, setSavedContent] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const isDirty = content !== null && savedContent !== null && content !== savedContent
 
   useEffect(() => {
     if (!selectedFile) {
       setContent(null)
+      setSavedContent(null)
       return
     }
 
@@ -338,6 +344,7 @@ export function FilePreview(): React.JSX.Element | null {
       try {
         const data = await window.piDesktop.files.read(selectedFile.path)
         setContent(data)
+        setSavedContent(data)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to read file')
       } finally {
@@ -350,20 +357,65 @@ export function FilePreview(): React.JSX.Element | null {
 
   if (!selectedFile) return null
 
+  const handleSave = async () => {
+    if (content === null || !selectedFile) return
+
+    setSaving(true)
+    setError(null)
+    try {
+      await window.piDesktop.files.write(selectedFile.path, content)
+      setSavedContent(content)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save file')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRevert = () => {
+    if (savedContent !== null) {
+      setContent(savedContent)
+    }
+  }
+
   return (
-    <div className="flex flex-1 flex-col overflow-hidden border-l border-neutral-800">
+    <div className="flex flex-1 flex-col overflow-hidden bg-[var(--color-bg-primary)]">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-2">
         <div className="flex items-center gap-2 min-w-0">
           <FileText size={14} className="shrink-0 text-neutral-500" />
           <span className="text-xs text-neutral-300 truncate">{selectedFile.relativePath}</span>
+          {isDirty && (
+            <span className="rounded bg-yellow-900/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-yellow-400">
+              modified
+            </span>
+          )}
         </div>
-        <button
-          onClick={() => useAppStore.getState().setSelectedFile(null, null)}
-          className="rounded p-1 text-neutral-500 hover:text-neutral-300"
-        >
-          <X size={12} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleRevert}
+            disabled={!isDirty || saving}
+            className="rounded p-1 text-neutral-500 transition-colors hover:text-neutral-300 disabled:cursor-not-allowed disabled:opacity-40"
+            title="Revert changes"
+          >
+            <RotateCcw size={12} />
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!isDirty || saving}
+            className="rounded p-1 text-neutral-500 transition-colors hover:text-neutral-300 disabled:cursor-not-allowed disabled:opacity-40"
+            title="Save file"
+          >
+            <Save size={12} />
+          </button>
+          <button
+            onClick={() => useAppStore.getState().setSelectedFile(null, null)}
+            className="rounded p-1 text-neutral-500 hover:text-neutral-300"
+            title="Close editor"
+          >
+            <X size={12} />
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -378,7 +430,8 @@ export function FilePreview(): React.JSX.Element | null {
           <CodeEditor
             filePath={selectedFile.relativePath}
             value={content}
-            readOnly
+            readOnly={false}
+            onChange={setContent}
           />
         ) : null}
       </div>

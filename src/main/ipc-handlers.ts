@@ -547,6 +547,15 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
     return fs.readFileContent(filePath)
   })
 
+  ipcMain.handle(IPC_CHANNELS.FILE_WRITE, async (_event, filePath: unknown, content: unknown) => {
+    if (!isString(filePath)) throw new Error('filePath must be a string')
+    if (!isString(content)) throw new Error('content must be a string')
+    const fs = workspaceManager.getActiveFileService()
+    if (!fs) throw new Error('No active workspace')
+    await fs.writeFileContent(filePath, content)
+    return { ok: true }
+  })
+
   ipcMain.handle(IPC_CHANNELS.FILE_DIFF, async (_event, filePath?: unknown) => {
     const fs = workspaceManager.getActiveFileService()
     if (!fs) throw new Error('No active workspace')

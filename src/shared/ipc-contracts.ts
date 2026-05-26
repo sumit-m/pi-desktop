@@ -90,6 +90,7 @@ export const IPC_CHANNELS = {
   FILE_SEARCH: 'file:search',
   FILE_SEARCH_CONTENT: 'file:search-content',
   FILE_READ: 'file:read',
+  FILE_WRITE: 'file:write',
   FILE_DIFF: 'file:diff',
   FILE_STAGED_DIFF: 'file:staged-diff',
   GIT_STATUS: 'git:status',

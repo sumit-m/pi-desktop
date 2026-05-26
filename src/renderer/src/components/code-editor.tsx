@@ -17,6 +17,12 @@ export function CodeEditor({
   onChange,
 }: CodeEditorProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
+  const viewRef = useRef<EditorView | null>(null)
+  const onChangeRef = useRef(onChange)
+
+  useEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -32,32 +38,35 @@ export function CodeEditor({
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
-            onChange?.(update.state.doc.toString())
+            onChangeRef.current?.(update.state.doc.toString())
           }
         }),
         EditorView.theme({
           '&': {
             height: '100%',
-            backgroundColor: '#0a0a0a',
-            color: '#d4d4d4',
+            backgroundColor: 'var(--color-bg-primary)',
+            color: 'var(--color-text-primary)',
             fontSize: '12px',
+          },
+          '.cm-editor': {
+            height: '100%',
           },
           '.cm-scroller': {
             fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
           },
           '.cm-content': {
-            caretColor: '#e5e5e5',
+            caretColor: 'var(--color-text-primary)',
           },
           '.cm-gutters': {
-            backgroundColor: '#0a0a0a',
-            color: '#737373',
-            borderRight: '1px solid #262626',
+            backgroundColor: 'var(--color-bg-primary)',
+            color: 'var(--color-text-muted)',
+            borderRight: '1px solid var(--color-border)',
           },
           '.cm-activeLine': {
-            backgroundColor: '#171717',
+            backgroundColor: 'var(--color-bg-secondary)',
           },
           '.cm-activeLineGutter': {
-            backgroundColor: '#171717',
+            backgroundColor: 'var(--color-bg-secondary)',
           },
           '&.cm-focused': {
             outline: 'none',
@@ -65,9 +74,29 @@ export function CodeEditor({
         }, { dark: true }),
       ],
     })
+    viewRef.current = view
 
-    return () => view.destroy()
-  }, [filePath, onChange, readOnly, value])
+    return () => {
+      view.destroy()
+      viewRef.current = null
+    }
+  }, [filePath, readOnly])
+
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+
+    const current = view.state.doc.toString()
+    if (current === value) return
+
+    view.dispatch({
+      changes: {
+        from: 0,
+        to: current.length,
+        insert: value,
+      },
+    })
+  }, [value])
 
   return <div ref={containerRef} className="h-full min-h-0" />
 }

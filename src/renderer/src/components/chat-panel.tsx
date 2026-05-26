@@ -6,7 +6,7 @@ import { FileTree, FileSearch, FilePreview } from './file-tree'
 import { DiffViewer } from './diff-viewer'
 import { TerminalPanel } from './terminal'
 import { useAutoScroll } from '../hooks'
-import { useEffect, useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { clsx } from 'clsx'
 import {
   FolderTree,
@@ -30,6 +30,8 @@ export function ChatPanel(): React.JSX.Element {
   const selectedFile = useAppStore((state) => state.selectedFile)
 
   const [sidePanel, setSidePanel] = useState<SidePanel>(null)
+  const [filePaneWidth, setFilePaneWidth] = useState(280)
+  const [editorPaneWidth, setEditorPaneWidth] = useState(420)
 
   const scrollRef = useAutoScroll([messages.length, streamingContent])
 
@@ -43,12 +45,7 @@ export function ChatPanel(): React.JSX.Element {
 
   const activeWorkspace = useAppStore((state) => state.activeWorkspace)
   const showSidePanel = sidePanel !== null || selectedFile !== null
-
-  useEffect(() => {
-    if (selectedFile && sidePanel === 'files') {
-      setSidePanel(null)
-    }
-  }, [selectedFile, sidePanel])
+  const showFileTree = sidePanel === 'files'
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -116,10 +113,41 @@ export function ChatPanel(): React.JSX.Element {
 
         {/* Side panel */}
         {showSidePanel && (
-          <div className="w-72 border-l border-neutral-800 flex flex-col overflow-hidden bg-neutral-950">
-            {sidePanel === 'files' && <FileTree />}
-            {sidePanel === 'diff' && <DiffViewer onClose={() => setSidePanel(null)} />}
-            {!sidePanel && selectedFile && <FilePreview />}
+          <div className="relative flex border-l border-neutral-800 bg-neutral-950">
+            <ResizeHandle
+              onResize={(delta) => {
+                if (sidePanel === 'files' && !selectedFile) {
+                  setFilePaneWidth((width) => clamp(width - delta, 220, 520))
+                } else {
+                  setEditorPaneWidth((width) => clamp(width - delta, 320, 900))
+                }
+              }}
+            />
+            {showFileTree && (
+              <>
+                <div className="flex min-w-0 flex-col overflow-hidden" style={{ width: filePaneWidth }}>
+                  <FileTree />
+                </div>
+                {selectedFile && (
+                  <ResizeHandle
+                    onResize={(delta) => setFilePaneWidth((width) => clamp(width + delta, 220, 520))}
+                  />
+                )}
+              </>
+            )}
+            {sidePanel === 'diff' && (
+              <div className="flex min-w-0 flex-col overflow-hidden" style={{ width: editorPaneWidth }}>
+                <DiffViewer onClose={() => setSidePanel(null)} />
+              </div>
+            )}
+            {selectedFile && sidePanel !== 'diff' && (
+              <div
+                className="flex min-w-0 flex-col overflow-hidden border-l border-neutral-800"
+                style={{ width: editorPaneWidth }}
+              >
+                <FilePreview />
+              </div>
+            )}
             <button
               onClick={() => {
                 setSidePanel(null)
@@ -140,6 +168,37 @@ export function ChatPanel(): React.JSX.Element {
       <FileSearch isOpen={fileSearchOpen} onClose={toggleFileSearch} />
     </div>
   )
+}
+
+function ResizeHandle({ onResize }: { onResize: (delta: number) => void }): React.JSX.Element {
+  const handleMouseDown = (event: React.MouseEvent) => {
+    event.preventDefault()
+    let lastX = event.clientX
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      onResize(moveEvent.clientX - lastX)
+      lastX = moveEvent.clientX
+    }
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }
+
+  return (
+    <div
+      onMouseDown={handleMouseDown}
+      className="w-1 cursor-col-resize bg-neutral-900 transition-colors hover:bg-blue-500/60"
+    />
+  )
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
 function ToolbarButton({
