@@ -180,7 +180,15 @@ const USE_NODE = PI_SCRIPT.endsWith('.js')
 const NODE_BINARY = findNodeBinary()
 // On Windows, .cmd/.bat/.ps1 shims require shell:true to be invoked via spawn.
 const NEEDS_SHELL = IS_WINDOWS && !USE_NODE && /\.(cmd|bat|ps1)$/i.test(PI_SCRIPT)
-console.log('[PI] Using:', USE_NODE ? `${NODE_BINARY} ${PI_SCRIPT}` : PI_SCRIPT, NEEDS_SHELL ? '(via shell)' : '')
+const PI_SCRIPT_EXISTS = existsSync(PI_SCRIPT)
+const NODE_BINARY_EXISTS = !USE_NODE || existsSync(NODE_BINARY)
+console.log('─── PI binary resolution ────────────────────────────')
+console.log('[PI] PI_SCRIPT     :', PI_SCRIPT, PI_SCRIPT_EXISTS ? '(exists)' : '(MISSING)')
+console.log('[PI] USE_NODE      :', USE_NODE)
+console.log('[PI] NODE_BINARY   :', NODE_BINARY, USE_NODE ? (NODE_BINARY_EXISTS ? '(exists)' : '(MISSING)') : '(unused)')
+console.log('[PI] NEEDS_SHELL   :', NEEDS_SHELL)
+console.log('[PI] Spawn command :', USE_NODE ? `${NODE_BINARY} ${PI_SCRIPT}` : PI_SCRIPT, NEEDS_SHELL ? '(via shell)' : '')
+console.log('─────────────────────────────────────────────────────')
 
 // Exported so ipc-handlers can run `pi install/remove/update` with the same
 // binary that was resolved here — Electron's PATH won't have `pi` directly.
@@ -239,6 +247,21 @@ export class PiRpcManager extends EventEmitter {
     this.setStatus('starting')
     this.stderrBuffer = ''
 
+    // Pre-flight: if the binary we resolved doesn't exist, fail fast with a
+    // clear message instead of letting spawn die with a cryptic ENOENT.
+    if (!PI_SCRIPT_EXISTS) {
+      this.stderrBuffer = `PI binary not found at resolved path:\n  ${PI_SCRIPT}\n\nSearched npm prefix, PATH, and common install locations. Make sure PI is installed:\n  npm install -g @earendil-works/pi-coding-agent\nor on Windows:\n  irm https://pi.dev/install.ps1 | iex`
+      this.setStatus('error')
+      console.error('[PI] Pre-flight failed:', this.stderrBuffer)
+      return this.getStatus()
+    }
+    if (USE_NODE && !NODE_BINARY_EXISTS) {
+      this.stderrBuffer = `Node binary not found at resolved path:\n  ${NODE_BINARY}\n\nPI's .js entry point requires Node. Install Node from https://nodejs.org or set the NODE env var to your Node binary path.`
+      this.setStatus('error')
+      console.error('[PI] Pre-flight failed:', this.stderrBuffer)
+      return this.getStatus()
+    }
+
     const args = this.buildArgs(options)
 
     try {
@@ -246,12 +269,13 @@ export class PiRpcManager extends EventEmitter {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: options.cwd,
         env: { ...process.env },
-        // .cmd/.bat shims on Windows can't be invoked directly from spawn —
-        // they need the cmd.exe interpreter via shell:true.
+        // .cmd/.bat/.ps1 shims on Windows can't be invoked directly from
+        // spawn — they need the cmd.exe interpreter via shell:true.
         shell: NEEDS_SHELL,
       }
 
       console.log('[PI] Spawning with cwd:', options.cwd)
+      console.log('[PI] Spawn argv     :', USE_NODE ? [NODE_BINARY, PI_SCRIPT, ...args] : [PI_SCRIPT, ...args])
       const proc = USE_NODE
         ? spawn(NODE_BINARY, [PI_SCRIPT, ...args], spawnOptions)
         : spawn(PI_SCRIPT, args, spawnOptions)
@@ -259,10 +283,20 @@ export class PiRpcManager extends EventEmitter {
 
       proc.on('error', (err) => {
         console.error('[PI] Spawn error:', err.message)
+        // Surface to the renderer status popover so users see something
+        // useful instead of a blank 'error' state.
+        this.stderrBuffer += `Spawn error: ${err.message}\n`
+        this.setStatus('error')
       })
 
       proc.on('exit', (code, signal) => {
         console.log('[PI] Process exited with code:', code, 'signal:', signal, 'pid:', proc.pid)
+        // If PI exited non-zero before reaching 'running', capture that as
+        // the error reason so the popover can show it.
+        if (this.status !== 'running' && code !== 0 && code !== null) {
+          this.stderrBuffer = (this.stderrBuffer || '') + `PI exited with code ${code} before becoming ready.`
+          this.setStatus('error')
+        }
       })
 
       this.setupStreams()
