@@ -77,12 +77,37 @@ function npmGlobalPrefix(): string | null {
 }
 
 /**
+ * Given a directory that probably contains the PI install (either an npm
+ * prefix or the dirname of a pi.cmd shim), try to find the underlying
+ * cli.js. Returns null if nothing matches.
+ *
+ * Why: spawning pi.cmd via shell:true on Windows is unreliable for RPC
+ * mode — the cmd.exe wrapper interferes with stdio piping that PI's
+ * JSONL protocol needs. If we can find the cli.js the shim would invoke,
+ * we can run it with node.exe directly and skip the shell entirely.
+ */
+function findCliJsNear(dir: string): string | null {
+  const candidates = [
+    join(dir, 'node_modules', PI_PACKAGE, 'dist', 'cli.js'),
+    join(dir, 'lib', 'node_modules', PI_PACKAGE, 'dist', 'cli.js'),
+    // pi-node managed install drops it one level up from the shim dir
+    join(dir, '..', 'node_modules', PI_PACKAGE, 'dist', 'cli.js'),
+  ]
+  for (const c of candidates) {
+    if (existsSync(c)) return c
+  }
+  return null
+}
+
+/**
  * Locate the PI coding agent CLI. Strategy (most reliable first):
  *
  *   1. Ask npm for its global prefix and look there. Works for default
  *      Node installs, fnm, nvm, volta, pnpm, custom prefixes — anything
  *      where `npm install -g` actually puts files.
  *   2. Search PATH for `pi` (respects PATHEXT on Windows for .cmd/.exe).
+ *      If found as a .cmd/.ps1 shim, try to locate the underlying cli.js
+ *      next to the shim so we can spawn Node directly.
  *   3. Fall back to OS-specific guesses for common install paths.
  *   4. Last resort: bare `pi`/`pi.cmd` (will likely fail with ENOENT).
  *
@@ -94,19 +119,30 @@ function findPiBinary(): string {
   // 1. npm's actual global prefix
   const prefix = npmGlobalPrefix()
   if (prefix) {
-    // Default npm layout: <prefix>/node_modules/<package>/dist/cli.js on
-    // Windows, <prefix>/lib/node_modules/... on macOS/Linux.
+    // Always try cli.js layouts first (any platform), then fall back to
+    // shims. Spawning the JS entry directly with Node is more reliable
+    // than the .cmd/.ps1 shim on Windows.
+    const cliJs = findCliJsNear(prefix)
+    if (cliJs) return cliJs
     const fromPrefixCandidates = IS_WINDOWS
-      ? [join(prefix, PI_CLI_REL), join(prefix, 'pi.cmd'), join(prefix, 'pi.ps1')]
-      : [join(prefix, 'lib', PI_CLI_REL), join(prefix, 'bin', 'pi')]
+      ? [join(prefix, 'pi.cmd'), join(prefix, 'pi.ps1')]
+      : [join(prefix, 'bin', 'pi')]
     for (const c of fromPrefixCandidates) {
       if (existsSync(c)) return c
     }
   }
 
-  // 2. PATH search (uses Windows PATHEXT for .cmd/.exe/.ps1)
+  // 2. PATH search (uses Windows PATHEXT for .cmd/.exe/.ps1). If it
+  //    resolves to a .cmd/.ps1 shim, look next to the shim for the
+  //    underlying cli.js so we can skip the shell wrapper.
   const fromPath = whichInPath('pi')
-  if (fromPath) return fromPath
+  if (fromPath) {
+    if (/\.(cmd|bat|ps1)$/i.test(fromPath)) {
+      const cliJs = findCliJsNear(join(fromPath, '..'))
+      if (cliJs) return cliJs
+    }
+    return fromPath
+  }
 
   // 3. OS-specific common locations as fallback
   const home = process.env.HOME ?? process.env.USERPROFILE ?? ''
@@ -153,9 +189,11 @@ function findNodeBinary(): string {
     const programFilesX86 = process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)'
     const localAppData = process.env.LOCALAPPDATA ?? ''
     const candidates = [
-      // PI's install.ps1 auto-installs Node to %LOCALAPPDATA%\pi-node when
-      // the user has no Node — check this first since it's what install.ps1
-      // wires up for spawning pi.
+      // PI's install.ps1 puts an auto-installed Node under
+      // %LOCALAPPDATA%\pi-node\current\node.exe. Check the symlinked
+      // 'current' path first; fall back to the bare pi-node dir for
+      // older layouts.
+      localAppData ? join(localAppData, 'pi-node', 'current', 'node.exe') : '',
       localAppData ? join(localAppData, 'pi-node', 'node.exe') : '',
       join(programFiles, 'nodejs', 'node.exe'),
       join(programFilesX86, 'nodejs', 'node.exe'),
@@ -322,11 +360,18 @@ export class PiRpcManager extends EventEmitter {
           this.rejectAllPending('PI process exited')
         })
 
-        // Timeout for startup
+        // Timeout for startup. Include whatever stderr PI managed to emit
+        // before the deadline — if PI crashed or printed a usage error,
+        // that text is the most useful thing to put in the popover.
         setTimeout(() => {
           if (this.status === 'starting') {
             this.setStatus('error')
-            this.stderrBuffer = 'PI startup timeout'
+            const captured = this.stderrBuffer.trim()
+            this.stderrBuffer =
+              `PI did not respond within ${SPAWN_STARTUP_TIMEOUT_MS / 1000}s.\n\n` +
+              (captured
+                ? `PI stderr captured during startup:\n${captured}`
+                : 'No output captured. Likely causes: PI launched but stdio piping is broken (common with shell:true on Windows), or PI is waiting on input. Try running `pi --mode rpc` directly in cmd to see if RPC mode works standalone.')
             resolve(this.getStatus())
           }
         }, SPAWN_STARTUP_TIMEOUT_MS)
