@@ -368,7 +368,7 @@ export function StatusPopover(): React.JSX.Element {
 
           {/* Footer */}
           <div className="px-4 py-2 border-t border-neutral-800 flex items-center justify-between text-[10px] text-neutral-600">
-            <span>v0.0.1-alpha</span>
+            <span>v{__APP_VERSION__}</span>
             <button
               onClick={() => {
                 useAppStore.getState().refreshSessionStats()
