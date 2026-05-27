@@ -37,7 +37,7 @@ By submitting a pull request, you acknowledge that you have read and agree to th
 
 **Branch policy.** This repository uses two long-lived branches:
 
-- `master` — public-facing docs only (`README.md`, `LICENSE`, `NOTICE`, `CLA.md`, `CONTRIBUTING.md`, `.gitignore`). Do not target PRs here.
+- `master` — public-facing docs only (`README.md`, `LICENSE`, `CLA.md`, `CONTRIBUTING.md`, `.gitignore`). Do not target PRs here.
 - `Dev` — all application source. This is where active development happens. **Target your pull requests against `Dev`.**
 
 Steps:
