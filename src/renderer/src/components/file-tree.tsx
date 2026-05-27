@@ -28,26 +28,41 @@ export function FileTree(): React.JSX.Element {
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const setCurrentView = useAppStore((state) => state.setCurrentView)
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      try {
-        const [treeData, status, branch] = await Promise.all([
-          window.piDesktop.files.getTree(4),
-          window.piDesktop.files.getGitStatus(),
-          window.piDesktop.files.getGitBranch(),
-        ])
-        setTree(treeData)
-        setGitStatus(status)
-        setGitBranch(branch)
-      } catch {
-        // Silent failure
-      } finally {
-        setLoading(false)
-      }
+  const loadTree = useCallback(async (showLoading: boolean) => {
+    if (showLoading) setLoading(true)
+    try {
+      const [treeData, status, branch] = await Promise.all([
+        window.piDesktop.files.getTree(4),
+        window.piDesktop.files.getGitStatus(),
+        window.piDesktop.files.getGitBranch(),
+      ])
+      setTree(treeData)
+      setGitStatus(status)
+      setGitBranch(branch)
+    } catch {
+      // Silent failure
+    } finally {
+      if (showLoading) setLoading(false)
     }
-    load()
   }, [])
+
+  useEffect(() => {
+    void loadTree(true)
+
+    const interval = window.setInterval(() => {
+      void loadTree(false)
+    }, 2000)
+
+    const handleFocus = () => {
+      void loadTree(false)
+    }
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [loadTree])
 
   const handleFileClick = useCallback((path: string, relativePath: string) => {
     setSelectedFile(relativePath)

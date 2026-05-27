@@ -133,6 +133,7 @@ export interface PiStartOptions {
   sessionPath?: string
   noSession?: boolean
   args?: string[]
+  env?: Record<string, string>
 }
 
 // ─── Terminal Types ─────────────────────────────────────────────────────────

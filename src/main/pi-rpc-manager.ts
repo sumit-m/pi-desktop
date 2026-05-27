@@ -309,7 +309,7 @@ export class PiRpcManager extends EventEmitter {
       const spawnOptions: SpawnOptions = {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: options.cwd,
-        env: { ...process.env },
+        env: { ...process.env, ...options.env },
         // .cmd/.bat/.ps1 shims on Windows can't be invoked directly from
         // spawn — they need the cmd.exe interpreter via shell:true.
         shell: NEEDS_SHELL,

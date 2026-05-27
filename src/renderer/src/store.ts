@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { applyTheme } from './utils/theme'
+import { buildPlanningPrompt } from './utils/planning-prompt'
 import type {
   PiRpcEvent,
   PiStatus,
@@ -369,7 +370,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   // ─── Prompts ──────────────────────────────────────────────────────────
 
   sendPrompt: async (message, options) => {
-    const { piStatus, isStreaming, sessionState } = get()
+    const { piStatus, isStreaming, sessionState, settings } = get()
 
     if (piStatus !== 'running') return
 
@@ -397,7 +398,10 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
         // Queue as steering during streaming
         await window.piDesktop.commands.steer(message)
       } else {
-        await window.piDesktop.commands.prompt(message, options)
+        const prompt = settings?.permissionMode === 'plan-readonly'
+          ? buildPlanningPrompt(message)
+          : message
+        await window.piDesktop.commands.prompt(prompt, options)
       }
     } catch (err) {
       get().addMessage({
@@ -634,6 +638,9 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   setPermissionMode: async (mode) => {
     const updated = await window.piDesktop.settings.save({ permissionMode: mode })
     set({ settings: updated })
+    if (get().piStatus === 'running') {
+      await get().restartPi()
+    }
   },
 
   loadCommands: async () => {
