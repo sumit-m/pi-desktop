@@ -1,22 +1,25 @@
 #!/usr/bin/env node
 /**
- * PI Desktop postinstall — handles the cross-platform sharp edges so a
- * fresh `npm install` actually works without manual intervention.
+ * PI Desktop postinstall — runs electron-rebuild for native modules and
+ * verifies that Electron's binary was actually placed on disk.
  *
  * Steps:
- *   1. On Windows: strip SpectreMitigation from node-pty's binding.gyp
- *      so electron-rebuild doesn't fail with MSB8040 on toolsets that
- *      don't ship Microsoft's Spectre-mitigated libraries (e.g. newer
- *      VS Build Tools releases like 17.14.x with the v180 toolset).
- *   2. Run electron-builder install-app-deps to rebuild native modules
+ *   1. Run electron-builder install-app-deps to rebuild native modules
  *      against Electron's ABI.
- *   3. Verify the Electron binary was actually placed in
+ *   2. Verify the Electron binary was actually placed in
  *      node_modules/electron/dist. If the download was silently skipped,
  *      automatically re-run Electron's own install.js. If that still
  *      doesn't work, surface a clear error with next steps.
+ *
+ * Windows note: node-pty's bundled conpty requires Microsoft's
+ * Spectre-mitigated libraries. If the rebuild fails with MSB8040,
+ * install the matching Spectre libs from the Visual Studio Installer
+ * (Individual components -> search "Spectre"). VS Build Tools 2022
+ * stable ships them for the v143 toolset; some newer preview channels
+ * with the v180 toolset do not yet, so prefer 2022 stable.
  */
 
-const { execSync, spawnSync } = require('child_process')
+const { spawnSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 
@@ -27,29 +30,6 @@ function log(msg) {
   console.log(`[postinstall] ${msg}`)
 }
 
-function patchNodePtyForWindows() {
-  if (!IS_WINDOWS) return
-
-  const bindingPath = path.join(ROOT, 'node_modules', 'node-pty', 'binding.gyp')
-  if (!fs.existsSync(bindingPath)) {
-    log('node-pty binding.gyp not found, skipping Spectre patch')
-    return
-  }
-
-  const original = fs.readFileSync(bindingPath, 'utf-8')
-  const patched = original.replace(/,?\s*"SpectreMitigation"\s*:\s*"[^"]*"/g, '')
-
-  if (original === patched) {
-    log('node-pty already patched (or no SpectreMitigation directive present)')
-    return
-  }
-
-  fs.writeFileSync(bindingPath, patched, 'utf-8')
-  log('patched node-pty/binding.gyp to drop SpectreMitigation requirement')
-  log('  (this allows building on Windows toolsets that ship without Spectre libs)')
-  log('  (release builds should be done on a system with Spectre libs installed)')
-}
-
 function rebuildNativeModules() {
   log('running electron-builder install-app-deps...')
   const result = spawnSync('npx', ['electron-builder', 'install-app-deps'], {
@@ -58,6 +38,15 @@ function rebuildNativeModules() {
     shell: IS_WINDOWS,
   })
   if (result.status !== 0) {
+    if (IS_WINDOWS) {
+      console.error('')
+      console.error('[postinstall] native rebuild failed on Windows.')
+      console.error('Most common cause: missing Spectre-mitigated libs for node-pty.')
+      console.error('Fix: open Visual Studio Installer -> Modify -> Individual components,')
+      console.error('search "Spectre", and install the libs for your toolset (v143 is the')
+      console.error('VS 2022 stable toolset). Then re-run `npm install`.')
+      console.error('')
+    }
     process.exit(result.status ?? 1)
   }
 }
@@ -99,6 +88,5 @@ function verifyElectronBinary() {
   log('electron binary downloaded and extracted')
 }
 
-patchNodePtyForWindows()
 rebuildNativeModules()
 verifyElectronBinary()
