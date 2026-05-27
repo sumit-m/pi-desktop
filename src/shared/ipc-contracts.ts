@@ -90,6 +90,7 @@ export const IPC_CHANNELS = {
   FILE_SEARCH: 'file:search',
   FILE_SEARCH_CONTENT: 'file:search-content',
   FILE_READ: 'file:read',
+  FILE_WRITE: 'file:write',
   FILE_DIFF: 'file:diff',
   FILE_STAGED_DIFF: 'file:staged-diff',
   GIT_STATUS: 'git:status',
@@ -132,6 +133,7 @@ export interface PiStartOptions {
   sessionPath?: string
   noSession?: boolean
   args?: string[]
+  env?: Record<string, string>
 }
 
 // ─── Terminal Types ─────────────────────────────────────────────────────────
@@ -479,7 +481,7 @@ export type PermissionMode = 'plan-readonly' | 'ask-edits' | 'ask-commands' | 't
 export interface AppSettings {
   piExecutablePath: string
   defaultArgs: string[]
-  theme: 'dark' | 'light' | 'system' | 'nord' | 'gruvbox'
+  theme: 'dark' | 'light' | 'system' | 'nord' | 'gruvbox' | 'breeze-dark' | 'breeze-light'
   defaultModel: string | null
   defaultProvider: string | null
   defaultCwd: string | null

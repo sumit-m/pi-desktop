@@ -1,4 +1,6 @@
 import { create } from 'zustand'
+import { applyTheme } from './utils/theme'
+import { buildPlanningPrompt } from './utils/planning-prompt'
 import type {
   PiRpcEvent,
   PiStatus,
@@ -74,6 +76,10 @@ interface AppState {
 
   // UI
   currentView: 'chat' | 'settings' | 'sessions' | 'timeline' | 'packages' | 'diff'
+  // Chat side panel: which secondary view (file tree or diff) is open in
+  // the chat workspace. Lifted into the store so it survives navigating
+  // away from chat (e.g. into Settings) and back.
+  chatSidePanel: 'files' | 'diff' | null
   sidebarOpen: boolean
   terminalOpen: boolean
   settings: AppSettings | null
@@ -151,6 +157,7 @@ interface AppActions {
 
   // UI
   setCurrentView: (view: AppState['currentView']) => void
+  setChatSidePanel: (panel: AppState['chatSidePanel']) => void
   toggleSidebar: () => void
   toggleTerminal: () => void
   loadSettings: () => Promise<void>
@@ -273,6 +280,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   pendingFollowUp: [],
 
   currentView: 'chat',
+  chatSidePanel: null,
   sidebarOpen: true,
   terminalOpen: false,
   settings: null,
@@ -362,7 +370,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   // ─── Prompts ──────────────────────────────────────────────────────────
 
   sendPrompt: async (message, options) => {
-    const { piStatus, isStreaming, sessionState } = get()
+    const { piStatus, isStreaming, sessionState, settings } = get()
 
     if (piStatus !== 'running') return
 
@@ -390,7 +398,10 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
         // Queue as steering during streaming
         await window.piDesktop.commands.steer(message)
       } else {
-        await window.piDesktop.commands.prompt(message, options)
+        const prompt = settings?.permissionMode === 'plan-readonly'
+          ? buildPlanningPrompt(message)
+          : message
+        await window.piDesktop.commands.prompt(prompt, options)
       }
     } catch (err) {
       get().addMessage({
@@ -604,6 +615,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   // ─── UI ───────────────────────────────────────────────────────────────
 
   setCurrentView: (view) => set({ currentView: view }),
+  setChatSidePanel: (panel) => set({ chatSidePanel: panel }),
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
 
@@ -614,21 +626,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
       const settings = await window.piDesktop.settings.getAll()
       set({ settings })
 
-      // Apply theme
-      const html = document.documentElement
-      html.classList.remove('dark', 'light', 'nord', 'gruvbox')
-      if (settings.theme === 'light') {
-        html.classList.add('light')
-        html.style.colorScheme = 'light'
-      } else if (settings.theme === 'system') {
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-        html.classList.add(prefersDark ? 'dark' : 'light')
-        html.style.colorScheme = prefersDark ? 'dark' : 'light'
-      } else {
-        // 'dark' | 'nord' | 'gruvbox' — all dark-based
-        html.classList.add(settings.theme)
-        html.style.colorScheme = 'dark'
-      }
+      applyTheme(settings.theme)
 
       // Apply font size
       document.documentElement.style.fontSize = `${settings.fontSize}px`
@@ -640,6 +638,9 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   setPermissionMode: async (mode) => {
     const updated = await window.piDesktop.settings.save({ permissionMode: mode })
     set({ settings: updated })
+    if (get().piStatus === 'running') {
+      await get().restartPi()
+    }
   },
 
   loadCommands: async () => {

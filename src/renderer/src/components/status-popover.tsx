@@ -49,6 +49,8 @@ export function StatusPopover(): React.JSX.Element {
 
   const piStatus = useAppStore((state) => state.piStatus)
   const piPid = useAppStore((state) => state.piPid)
+  const piError = useAppStore((state) => state.piError)
+  const [errorCopied, setErrorCopied] = useState(false)
   const sessionState = useAppStore((state) => state.sessionState)
   const sessionStats = useAppStore((state) => state.sessionStats)
   const activeWorkspace = useAppStore((state) => state.activeWorkspace)
@@ -149,6 +151,27 @@ export function StatusPopover(): React.JSX.Element {
                   </span>
                 }
               />
+              {piError && (
+                <div className="mt-2 rounded-md border border-red-800/50 bg-red-950/30 p-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] uppercase tracking-wide text-red-400 font-semibold">Error</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(piError)
+                        setErrorCopied(true)
+                        setTimeout(() => setErrorCopied(false), 1500)
+                      }}
+                      className="text-[10px] text-red-300 hover:text-red-200"
+                    >
+                      {errorCopied ? 'copied' : 'copy'}
+                    </button>
+                  </div>
+                  <pre className="text-[11px] text-red-200 whitespace-pre-wrap break-words max-h-40 overflow-y-auto font-mono">
+                    {piError}
+                  </pre>
+                </div>
+              )}
               {sessionState?.model && (
                 <StatusRow
                   label="Model"
@@ -345,7 +368,7 @@ export function StatusPopover(): React.JSX.Element {
 
           {/* Footer */}
           <div className="px-4 py-2 border-t border-neutral-800 flex items-center justify-between text-[10px] text-neutral-600">
-            <span>v0.0.1-alpha</span>
+            <span>v{__APP_VERSION__}</span>
             <button
               onClick={() => {
                 useAppStore.getState().refreshSessionStats()

@@ -127,6 +127,7 @@ interface PiDesktopAPI {
     search(query: string): Promise<FileSearchResult[]>
     searchContent(query: string): Promise<FileSearchResult[]>
     read(path: string): Promise<string>
+    write(path: string, content: string): Promise<{ ok: boolean }>
     getDiff(filePath?: string): Promise<string>
     getStagedDiff(filePath?: string): Promise<string>
     getGitStatus(): Promise<Record<string, GitFileStatus>>
@@ -261,6 +262,7 @@ const api: PiDesktopAPI = {
     search: (query) => ipcRenderer.invoke(IPC_CHANNELS.FILE_SEARCH, query),
     searchContent: (query) => ipcRenderer.invoke(IPC_CHANNELS.FILE_SEARCH_CONTENT, query),
     read: (path) => ipcRenderer.invoke(IPC_CHANNELS.FILE_READ, path),
+    write: (path, content) => ipcRenderer.invoke(IPC_CHANNELS.FILE_WRITE, path, content),
     getDiff: (filePath) => ipcRenderer.invoke(IPC_CHANNELS.FILE_DIFF, filePath),
     getStagedDiff: (filePath) => ipcRenderer.invoke(IPC_CHANNELS.FILE_STAGED_DIFF, filePath),
     getGitStatus: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STATUS),

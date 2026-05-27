@@ -15,8 +15,6 @@ import {
   X,
 } from 'lucide-react'
 
-type SidePanel = 'files' | 'diff' | null
-
 export function ChatPanel(): React.JSX.Element {
   const messages = useAppStore((state) => state.messages)
   const isStreaming = useAppStore((state) => state.isStreaming)
@@ -29,7 +27,12 @@ export function ChatPanel(): React.JSX.Element {
   const toggleFileSearch = useAppStore((state) => state.toggleFileSearch)
   const selectedFile = useAppStore((state) => state.selectedFile)
 
-  const [sidePanel, setSidePanel] = useState<SidePanel>(null)
+  // sidePanel lives in the store so it survives view switches (e.g. Settings
+  // round-trip). Widths stay local — resetting them on remount is benign.
+  const sidePanel = useAppStore((state) => state.chatSidePanel)
+  const setSidePanel = useAppStore((state) => state.setChatSidePanel)
+  const [sidePanelWidth, setSidePanelWidth] = useState(640)
+  const [filePaneWidth, setFilePaneWidth] = useState(280)
 
   const scrollRef = useAutoScroll([messages.length, streamingContent])
 
@@ -43,6 +46,15 @@ export function ChatPanel(): React.JSX.Element {
 
   const activeWorkspace = useAppStore((state) => state.activeWorkspace)
   const showSidePanel = sidePanel !== null || selectedFile !== null
+  const showFileTree = sidePanel === 'files'
+  const showEditor = selectedFile !== null && sidePanel !== 'diff'
+  const showDiff = sidePanel === 'diff'
+  const showFileTreeOnly = showFileTree && !showEditor
+  const minSidePanelWidth = showFileTree && showEditor ? 600 : 360
+  const effectiveSidePanelWidth = clamp(sidePanelWidth, minSidePanelWidth, 1280)
+  const maxFilePaneWidth = Math.max(220, effectiveSidePanelWidth - 360)
+  const effectiveFilePaneWidth = clamp(filePaneWidth, 220, maxFilePaneWidth)
+  const sidePanelContentWidth = showFileTreeOnly ? effectiveFilePaneWidth : effectiveSidePanelWidth
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -110,19 +122,50 @@ export function ChatPanel(): React.JSX.Element {
 
         {/* Side panel */}
         {showSidePanel && (
-          <div className="w-72 border-l border-neutral-800 flex flex-col overflow-hidden bg-neutral-950">
-            {sidePanel === 'files' && <FileTree />}
-            {sidePanel === 'diff' && <DiffViewer onClose={() => setSidePanel(null)} />}
-            {!sidePanel && selectedFile && <FilePreview />}
-            <button
-              onClick={() => {
-                setSidePanel(null)
-                useAppStore.getState().setSelectedFile(null, null)
+          <div className="relative flex border-l border-neutral-800 bg-neutral-950" style={{ width: sidePanelContentWidth }}>
+            <ResizeHandle
+              onResize={(delta) => {
+                if (showFileTreeOnly) {
+                  setFilePaneWidth((width) => clamp(width - delta, 220, 520))
+                  return
+                }
+
+                setSidePanelWidth((width) => clamp(width - delta, minSidePanelWidth, 1280))
               }}
-              className="absolute top-1 right-1 rounded p-1 text-neutral-600 hover:text-neutral-400 z-10"
-            >
-              <X size={12} />
-            </button>
+            />
+            <div className="flex min-w-0 flex-1 overflow-hidden">
+              {showFileTree && (
+                <>
+                  <div className="flex min-w-0 shrink-0 flex-col overflow-hidden" style={{ width: effectiveFilePaneWidth }}>
+                    <FileTree />
+                  </div>
+                  {showEditor && (
+                    <ResizeHandle
+                      onResize={(delta) => setFilePaneWidth((width) => clamp(width + delta, 220, maxFilePaneWidth))}
+                    />
+                  )}
+                </>
+              )}
+              {showDiff && (
+                <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+                  <DiffViewer onClose={() => setSidePanel(null)} />
+                </div>
+              )}
+              {showEditor && (
+                <div className="flex min-w-[360px] flex-1 flex-col overflow-hidden border-l border-neutral-800">
+                  <FilePreview />
+                </div>
+              )}
+            </div>
+            {showFileTreeOnly && (
+              <button
+                onClick={() => setSidePanel(null)}
+                className="absolute top-1 right-1 z-10 rounded p-1 text-neutral-600 hover:text-neutral-400"
+                title="Close file tree"
+              >
+                <X size={12} />
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -134,6 +177,44 @@ export function ChatPanel(): React.JSX.Element {
       <FileSearch isOpen={fileSearchOpen} onClose={toggleFileSearch} />
     </div>
   )
+}
+
+function ResizeHandle({ onResize }: { onResize: (delta: number) => void }): React.JSX.Element {
+  const handleMouseDown = (event: React.MouseEvent) => {
+    event.preventDefault()
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    let lastX = event.clientX
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      onResize(moveEvent.clientX - lastX)
+      lastX = moveEvent.clientX
+    }
+
+    const handleMouseUp = () => {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }
+
+  return (
+    <div
+      onMouseDown={handleMouseDown}
+      className="group flex w-2 shrink-0 cursor-col-resize items-stretch justify-center bg-neutral-950 transition-colors hover:bg-neutral-800"
+      title="Drag to resize"
+    >
+      <div className="w-px bg-neutral-700 transition-colors group-hover:bg-blue-400" />
+    </div>
+  )
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
 function ToolbarButton({

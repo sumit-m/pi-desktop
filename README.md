@@ -9,7 +9,7 @@ Still in alpha — expect rough edges.
 - Streaming chat with thinking blocks and tool use
 - Multiple workspaces, each with its own PI process and sessions
 - Review rail with permissions, approvals, changed files, and session status
-- File tree, diff viewer, file search
+- File tree, code editor (CodeMirror 6 with syntax highlighting), diff viewer, file search
 - Terminal with ANSI colors
 - Package browser connected to pi.dev/packages
 - Session tags, model switching, themes (Dark, Light, Nord, Gruvbox)
@@ -61,12 +61,92 @@ macOS isn't shipping yet. A Windows portable `.exe` is available in [Releases](h
 
 ## Build it yourself
 
+### Linux / macOS
+
 ```bash
 git clone https://github.com/FaqFirebase/pi-desktop.git
 cd pi-desktop
 npm install
 npm run dev
 ```
+
+### Windows
+
+Windows requires extra steps because **node-pty** (the terminal backend) compiles a native module against Electron's ABI.
+
+#### 1. Install prerequisites
+
+Install all of the following **before** cloning:
+
+- [Git for Windows](https://git-scm.com/download/win)
+- [Node.js LTS](https://nodejs.org) — use the official Windows installer (adds `node` and `npm` to PATH)
+- **Visual Studio Build Tools 2022** — download from [Visual Studio downloads](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022)
+  - Select the **Desktop development with C++** workload
+  - Open **Individual components**, search `Spectre`, and install **Spectre-mitigated libs for v143 toolset**
+
+> **⚠️ Use VS Build Tools 2022, not 2026.** node-pty requires Spectre-mitigated runtime libraries. VS 2022 stable (v143 toolset) ships them. VS 2026 preview (v180 toolset) does not — `npm install` will fail with `MSB8040: Spectre-mitigated libraries are required for this project`.
+
+#### 2. Add a Windows Defender exclusion (recommended)
+
+Defender can block or slow `npm install` on projects with many small files. Before cloning, add an exclusion:
+
+Settings → Privacy & Security → Windows Security → Virus & threat protection → Manage settings → Exclusions → Add a folder → (pick where you'll clone the repo)
+
+#### 3. Clone and install
+
+```powershell
+git clone https://github.com/FaqFirebase/pi-desktop.git
+cd pi-desktop
+npm install
+```
+
+The postinstall script rebuilds `node-pty` against Electron's ABI and downloads the Electron binary. First install may take a few minutes.
+
+If the Electron binary is missing after install, use the [manual Electron binary download](#manual-electron-binary-download) steps below. This is the confirmed fallback on Windows when Electron's postinstall extraction leaves a partial `dist` folder.
+
+#### 4. Install PI
+
+```powershell
+powershell -c "irm https://pi.dev/install.ps1 | iex"
+```
+
+Open a **new terminal** after this so the updated PATH takes effect.
+
+#### 5. Run
+
+```powershell
+npm run dev
+```
+
+#### Common Windows errors
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `MSB8040` — Spectre libs missing | VS Build Tools 2026 (v180 toolset) installed instead of 2022 (v143) | Uninstall 2026, install VS Build Tools 2022 with Spectre libs for v143 |
+| `electron-vite is not recognized` | `npm install` didn't complete | Run `npm install` again |
+| Electron binary missing after install | Electron's postinstall extraction left a partial or missing `dist` folder | Add the repo folder to Defender exclusions, then `npm install` again. If it still fails, use the manual download steps below |
+| PI shows "error" in status popover | PI not installed or PATH not updated | Run the install script above in a **new** terminal window |
+
+#### Manual Electron binary download
+
+If `npm install` completes but the app won't launch because Electron is missing or corrupted, download it directly from GitHub and unpack it into place. This is the known-good fallback when `node_modules\electron\dist` contains only partial contents, such as `locales`, and no `electron.exe`.
+
+Replace `39.8.10` with the version in `node_modules/electron/package.json` if it differs.
+
+```powershell
+$ver = "39.8.10"
+$url = "https://github.com/electron/electron/releases/download/v$ver/electron-v$ver-win32-x64.zip"
+$zip = "$env:TEMP\electron-v$ver-win32-x64.zip"
+Invoke-WebRequest -Uri $url -OutFile $zip
+if (Test-Path node_modules\electron\dist) { Remove-Item -Recurse -Force node_modules\electron\dist }
+Expand-Archive -Path $zip -DestinationPath node_modules\electron\dist -Force
+"electron.exe" | Out-File -Encoding ASCII -NoNewline node_modules\electron\path.txt
+"v$ver" | Out-File -Encoding ASCII -NoNewline node_modules\electron\dist\version
+```
+
+After this, `npm run dev` should work normally.
+
+> **Note:** Windows builds are community-tested. If you hit an issue not listed above, please [open a bug report](https://github.com/FaqFirebase/pi-desktop/issues).
 
 ## License
 

@@ -11,25 +11,25 @@ export const PERMISSION_MODE_OPTIONS: Array<{
   {
     value: 'plan-readonly',
     label: 'Plan / Read-only',
-    description: 'PI can inspect and propose, but should not edit files or run risky commands.',
+    description: 'Only read/search/list tools are enabled. File edits and shell commands are blocked.',
     tone: 'safe',
   },
   {
     value: 'ask-edits',
     label: 'Ask before edits',
-    description: 'PI should request approval before changing files.',
+    description: 'PI will ask before file edits and shell commands that can change files.',
     tone: 'review',
   },
   {
     value: 'ask-commands',
     label: 'Ask before commands',
-    description: 'PI should request approval before running shell commands.',
+    description: 'PI will ask before running shell commands.',
     tone: 'command',
   },
   {
     value: 'trusted',
     label: 'Trusted',
-    description: 'PI may proceed with fewer prompts for workflows you trust.',
+    description: 'All PI tools are enabled for workflows you trust.',
     tone: 'trusted',
   },
 ]

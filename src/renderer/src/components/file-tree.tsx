@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useAppStore } from '../store'
 import type { FileTreeNode, GitFileStatus, FileSearchResult } from '../../../shared/ipc-contracts'
+import { CodeEditor } from './code-editor'
 import { clsx } from 'clsx'
 import {
   FolderOpen,
@@ -13,6 +14,8 @@ import {
   FileText,
   GitBranch,
   Loader2,
+  Save,
+  RotateCcw,
 } from 'lucide-react'
 
 // ─── File Tree ───────────────────────────────────────────────────────────────
@@ -25,26 +28,41 @@ export function FileTree(): React.JSX.Element {
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const setCurrentView = useAppStore((state) => state.setCurrentView)
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      try {
-        const [treeData, status, branch] = await Promise.all([
-          window.piDesktop.files.getTree(4),
-          window.piDesktop.files.getGitStatus(),
-          window.piDesktop.files.getGitBranch(),
-        ])
-        setTree(treeData)
-        setGitStatus(status)
-        setGitBranch(branch)
-      } catch {
-        // Silent failure
-      } finally {
-        setLoading(false)
-      }
+  const loadTree = useCallback(async (showLoading: boolean) => {
+    if (showLoading) setLoading(true)
+    try {
+      const [treeData, status, branch] = await Promise.all([
+        window.piDesktop.files.getTree(4),
+        window.piDesktop.files.getGitStatus(),
+        window.piDesktop.files.getGitBranch(),
+      ])
+      setTree(treeData)
+      setGitStatus(status)
+      setGitBranch(branch)
+    } catch {
+      // Silent failure
+    } finally {
+      if (showLoading) setLoading(false)
     }
-    load()
   }, [])
+
+  useEffect(() => {
+    void loadTree(true)
+
+    const interval = window.setInterval(() => {
+      void loadTree(false)
+    }, 2000)
+
+    const handleFocus = () => {
+      void loadTree(false)
+    }
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [loadTree])
 
   const handleFileClick = useCallback((path: string, relativePath: string) => {
     setSelectedFile(relativePath)
@@ -322,47 +340,131 @@ export function FileSearch({ isOpen, onClose }: FileSearchProps): React.JSX.Elem
 export function FilePreview(): React.JSX.Element | null {
   const selectedFile = useAppStore((state) => state.selectedFile)
   const [content, setContent] = useState<string | null>(null)
+  const [savedContent, setSavedContent] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isDirty = content !== null && savedContent !== null && content !== savedContent
 
   useEffect(() => {
     if (!selectedFile) {
       setContent(null)
+      setSavedContent(null)
       return
     }
+
+    let cancelled = false
 
     const load = async () => {
       setLoading(true)
       setError(null)
       try {
         const data = await window.piDesktop.files.read(selectedFile.path)
-        setContent(data)
+        if (!cancelled) {
+          setContent(data)
+          setSavedContent(data)
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to read file')
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to read file')
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
     load()
+
+    return () => {
+      cancelled = true
+    }
   }, [selectedFile])
+
+  // Cleanup pending debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current !== null) clearTimeout(debounceRef.current)
+    }
+  }, [])
+
+  const handleChange = useCallback((value: string) => {
+    if (debounceRef.current !== null) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      setContent(value)
+      debounceRef.current = null
+    }, 150)
+  }, [])
 
   if (!selectedFile) return null
 
+  const handleSave = async () => {
+    if (content === null || !selectedFile) return
+
+    setSaving(true)
+    setError(null)
+    setSaveSuccess(false)
+    try {
+      await window.piDesktop.files.write(selectedFile.path, content)
+      setSavedContent(content)
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save file')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRevert = () => {
+    if (savedContent !== null) {
+      setContent(savedContent)
+    }
+  }
+
   return (
-    <div className="flex flex-1 flex-col overflow-hidden border-l border-neutral-800">
+    <div className="flex flex-1 flex-col overflow-hidden bg-[var(--color-bg-primary)]">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-2">
         <div className="flex items-center gap-2 min-w-0">
           <FileText size={14} className="shrink-0 text-neutral-500" />
           <span className="text-xs text-neutral-300 truncate">{selectedFile.relativePath}</span>
+          {saveSuccess ? (
+            <span className="rounded bg-green-900/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-green-400">
+              saved
+            </span>
+          ) : isDirty ? (
+            <span className="rounded bg-yellow-900/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-yellow-400">
+              modified
+            </span>
+          ) : null}
         </div>
-        <button
-          onClick={() => useAppStore.getState().setSelectedFile(null, null)}
-          className="rounded p-1 text-neutral-500 hover:text-neutral-300"
-        >
-          <X size={12} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleRevert}
+            disabled={!isDirty || saving}
+            className="rounded p-1 text-neutral-500 transition-colors hover:text-neutral-300 disabled:cursor-not-allowed disabled:opacity-40"
+            title="Revert changes"
+          >
+            <RotateCcw size={12} />
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!isDirty || saving}
+            className="rounded p-1 text-neutral-500 transition-colors hover:text-neutral-300 disabled:cursor-not-allowed disabled:opacity-40"
+            title="Save file"
+          >
+            <Save size={12} />
+          </button>
+          <button
+            onClick={() => useAppStore.getState().setSelectedFile(null, null)}
+            className="rounded p-1 text-neutral-500 hover:text-neutral-300"
+            title="Close editor"
+          >
+            <X size={12} />
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -374,9 +476,12 @@ export function FilePreview(): React.JSX.Element | null {
         ) : error ? (
           <div className="p-4 text-xs text-red-400">{error}</div>
         ) : content !== null ? (
-          <pre className="p-4 text-xs text-neutral-300 font-mono whitespace-pre-wrap break-words leading-relaxed">
-            {content}
-          </pre>
+          <CodeEditor
+            filePath={selectedFile.relativePath}
+            value={content}
+            readOnly={false}
+            onChange={handleChange}
+          />
         ) : null}
       </div>
     </div>

@@ -8,6 +8,7 @@ import type {
   PiStartOptions,
   PiRpcEvent,
   AppSettings,
+  PermissionMode,
   SessionDeleteResult,
   CatalogPackage,
 } from '../shared/ipc-contracts'
@@ -29,6 +30,10 @@ const execFileAsync = promisify(execFile)
 
 const JSONL_EXTENSION = '.jsonl'
 const MAX_SESSION_LIST = 100
+const READ_ONLY_TOOLS = 'read,grep,find,ls'
+const PERMISSIONS_EXTENSION_PATH = app.isPackaged
+  ? join(process.resourcesPath, 'resources', 'pi-desktop-permissions.ts')
+  : join(app.getAppPath(), 'resources', 'pi-desktop-permissions.ts')
 
 // Type guard helpers
 function isString(value: unknown): value is string {
@@ -58,6 +63,55 @@ function sessionIdFromPath(sessionPath: string): string {
   return base.endsWith(SESSION_FILE_EXTENSION)
     ? base.slice(0, -SESSION_FILE_EXTENSION.length)
     : base
+}
+
+function removeToolArgs(args: string[]): string[] {
+  const filtered: string[] = []
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]
+    if (arg === '--tools' || arg === '-t') {
+      i++
+      continue
+    }
+    if (arg.startsWith('--tools=') || arg.startsWith('-t=')) continue
+    if (arg === '--no-tools' || arg === '-nt' || arg === '--no-builtin-tools' || arg === '-nbt') continue
+    filtered.push(arg)
+  }
+  return filtered
+}
+
+function toolsForPermissionMode(mode: PermissionMode): string | null {
+  switch (mode) {
+    case 'plan-readonly':
+      return READ_ONLY_TOOLS
+    case 'ask-commands':
+    case 'ask-edits':
+    case 'trusted':
+      return null
+  }
+}
+
+function applyPermissionModeToStartOptions(
+  options: PiStartOptions,
+  settings: AppSettings
+): PiStartOptions {
+  const toolList = toolsForPermissionMode(settings.permissionMode)
+  const args = toolList
+    ? [...removeToolArgs(options.args ?? []), '--tools', toolList]
+    : [...(options.args ?? [])]
+  const needsApprovalExtension = settings.permissionMode === 'ask-edits' || settings.permissionMode === 'ask-commands'
+  if (needsApprovalExtension && existsSync(PERMISSIONS_EXTENSION_PATH)) {
+    args.push('-e', PERMISSIONS_EXTENSION_PATH)
+  }
+
+  return {
+    ...options,
+    args,
+    env: {
+      ...options.env,
+      PI_DESKTOP_PERMISSION_MODE: settings.permissionMode,
+    },
+  }
 }
 
 /**
@@ -115,6 +169,7 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
   ipcMain.handle(IPC_CHANNELS.PI_START, async (_event, options?: unknown) => {
     console.log('[IPC] PI_START called')
     const opts = validateStartOptions(options)
+    const settings = await loadAppSettings(workspaceManager)
     const activeWs = workspaceManager.getActiveWorkspace()
     if (!activeWs) throw new Error('No active workspace')
 
@@ -126,7 +181,10 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
       cwd = process.env.HOME ?? process.env.USERPROFILE ?? process.cwd()
     }
 
-    await workspaceManager.startPiForWorkspace(activeWs.id, { ...opts, cwd })
+    await workspaceManager.startPiForWorkspace(
+      activeWs.id,
+      applyPermissionModeToStartOptions({ ...opts, cwd }, settings)
+    )
     const pi = workspaceManager.getPiManager(activeWs.id)
     if (!pi) throw new Error('Failed to create PI manager')
 
@@ -145,6 +203,7 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
 
   ipcMain.handle(IPC_CHANNELS.PI_RESTART, async (_event, options?: unknown) => {
     const opts = validateStartOptions(options)
+    const settings = await loadAppSettings(workspaceManager)
     const activeWs = workspaceManager.getActiveWorkspace()
     if (!activeWs) throw new Error('No active workspace')
 
@@ -152,7 +211,7 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
     if (!pi) throw new Error('No PI manager for workspace')
 
     pi.stop()
-    return pi.start({ cwd: activeWs.path, ...opts })
+    return pi.start(applyPermissionModeToStartOptions({ cwd: activeWs.path, ...opts }, settings))
   })
 
   ipcMain.handle(IPC_CHANNELS.PI_STATUS, async () => {
@@ -411,7 +470,8 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
   ipcMain.handle(IPC_CHANNELS.WORKSPACE_START_PI, async (_event, workspaceId: unknown, options?: unknown) => {
     if (!isString(workspaceId)) throw new Error('workspaceId must be a string')
     const opts = validateStartOptions(options)
-    await workspaceManager.startPiForWorkspace(workspaceId, opts)
+    const settings = await loadAppSettings(workspaceManager)
+    await workspaceManager.startPiForWorkspace(workspaceId, applyPermissionModeToStartOptions(opts, settings))
     const pi = workspaceManager.getPiManager(workspaceId)
     return pi?.getStatus() ?? { status: 'stopped', pid: null, error: null }
   })
@@ -545,6 +605,15 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
     const fs = workspaceManager.getActiveFileService()
     if (!fs) throw new Error('No active workspace')
     return fs.readFileContent(filePath)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.FILE_WRITE, async (_event, filePath: unknown, content: unknown) => {
+    if (!isString(filePath)) throw new Error('filePath must be a string')
+    if (!isString(content)) throw new Error('content must be a string')
+    const fs = workspaceManager.getActiveFileService()
+    if (!fs) throw new Error('No active workspace')
+    await fs.writeFileContent(filePath, content)
+    return { ok: true }
   })
 
   ipcMain.handle(IPC_CHANNELS.FILE_DIFF, async (_event, filePath?: unknown) => {
@@ -686,6 +755,7 @@ function validateStartOptions(value: unknown): PiStartOptions {
   if (!isOptionalString(value.sessionPath)) throw new Error('sessionPath must be a string')
   if (!isOptionalBoolean(value.noSession)) throw new Error('noSession must be a boolean')
   if (!isOptionalStringArray(value.args)) throw new Error('args must be a string array')
+  if (value.env !== undefined && !isObject(value.env)) throw new Error('env must be an object')
 
   if (isString(value.cwd)) opts.cwd = value.cwd
   if (isString(value.model)) opts.model = value.model
@@ -693,6 +763,11 @@ function validateStartOptions(value: unknown): PiStartOptions {
   if (isString(value.sessionPath)) opts.sessionPath = value.sessionPath
   if (value.noSession === true) opts.noSession = true
   if (Array.isArray(value.args)) opts.args = value.args as string[]
+  if (isObject(value.env)) {
+    opts.env = Object.fromEntries(
+      Object.entries(value.env).filter((entry): entry is [string, string] => isString(entry[1]))
+    )
+  }
 
   return opts
 }
@@ -923,6 +998,8 @@ async function runPiCli(
       cwd,
       timeout,
       env: { ...process.env },
+      // Windows .cmd/.bat shims require shell:true to be invoked.
+      shell: PI_CLI.needsShell,
     })
     return { success: true, output: stdout + stderr }
   } catch (err) {

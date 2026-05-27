@@ -4,6 +4,7 @@ import type { AppSettings, PermissionMode } from '../../../shared/ipc-contracts'
 import { Settings, Save, RotateCcw, FolderOpen, Check } from 'lucide-react'
 import { DEFAULT_PERMISSION_MODE } from './permission-mode'
 import { PermissionSelector } from './permission-selector'
+import { applyTheme } from '../utils/theme'
 
 export function SettingsPanel(): React.JSX.Element {
   const settings = useAppStore((state) => state.settings)
@@ -140,6 +141,8 @@ export function SettingsPanel(): React.JSX.Element {
               <option value="system">System</option>
               <option value="nord">Nord</option>
               <option value="gruvbox">Gruvbox</option>
+              <option value="breeze-dark">Breeze Dark (Kate)</option>
+              <option value="breeze-light">Breeze Light (Kate)</option>
             </select>
           </SettingsRow>
 
@@ -201,28 +204,6 @@ export function SettingsPanel(): React.JSX.Element {
       </div>
     </div>
   )
-}
-
-// ─── Theme Application ───────────────────────────────────────────────────────
-
-const THEME_CLASSES = ['dark', 'light', 'nord', 'gruvbox'] as const
-
-function applyTheme(theme: string): void {
-  const html = document.documentElement
-  html.classList.remove(...THEME_CLASSES)
-
-  if (theme === 'light') {
-    html.classList.add('light')
-    html.style.colorScheme = 'light'
-  } else if (theme === 'system') {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    html.classList.add(prefersDark ? 'dark' : 'light')
-    html.style.colorScheme = prefersDark ? 'dark' : 'light'
-  } else {
-    // 'dark' | 'nord' | 'gruvbox' — all dark-based
-    html.classList.add(theme)
-    html.style.colorScheme = 'dark'
-  }
 }
 
 // ─── Components ──────────────────────────────────────────────────────────────
