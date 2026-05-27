@@ -32,6 +32,9 @@ const SESSION_FLAG = '--session'
 const IS_WINDOWS = process.platform === 'win32'
 const PI_FALLBACK_BINARY = IS_WINDOWS ? 'pi.cmd' : 'pi'
 const SPAWN_STARTUP_TIMEOUT_MS = 15_000
+// PI's RPC mode is request/response — it emits nothing on connect. After this
+// settle window, a still-alive process is considered ready.
+const PROCESS_SETTLE_MS = 2_000
 const FORCE_KILL_TIMEOUT_MS = 3_000
 const PI_PACKAGE = '@earendil-works/pi-coding-agent'
 const PI_CLI_REL = join('node_modules', PI_PACKAGE, 'dist', 'cli.js')
@@ -340,29 +343,47 @@ export class PiRpcManager extends EventEmitter {
       this.setupStreams()
 
       return new Promise<PiStatus>((resolve) => {
-        const onFirstData = (): void => {
-          this.process?.stdout?.removeListener('data', onFirstData)
-          this.setStatus('running')
+        let resolved = false
+        const done = (): void => {
+          if (resolved) return
+          resolved = true
           resolve(this.getStatus())
         }
 
+        // Mark running immediately if PI sends stdout before the settle window.
+        const onFirstData = (): void => {
+          this.process?.stdout?.removeListener('data', onFirstData)
+          if (this.status === 'starting') this.setStatus('running')
+          done()
+        }
         this.process!.stdout?.on('data', onFirstData)
 
         this.process!.on('error', (err) => {
           this.setStatus('error')
           this.stderrBuffer = err.message
-          resolve(this.getStatus())
+          done()
         })
 
         this.process!.on('exit', (code, signal) => {
           this.setStatus('stopped')
           this.emit('exit', { code, signal })
           this.rejectAllPending('PI process exited')
+          done()
         })
 
-        // Timeout for startup. Include whatever stderr PI managed to emit
-        // before the deadline — if PI crashed or printed a usage error,
-        // that text is the most useful thing to put in the popover.
+        // PI's RPC mode is pure request/response — it emits nothing on connect.
+        // If the process is still alive after the settle window without erroring
+        // or exiting, it is ready to receive commands.
+        setTimeout(() => {
+          if (this.status === 'starting') {
+            this.process?.stdout?.removeListener('data', onFirstData)
+            this.setStatus('running')
+            done()
+          }
+        }, PROCESS_SETTLE_MS)
+
+        // Hard deadline: something is seriously wrong if we're still stuck in
+        // 'starting' after the full timeout (the settle timer should have fired).
         setTimeout(() => {
           if (this.status === 'starting') {
             this.setStatus('error')
@@ -372,7 +393,7 @@ export class PiRpcManager extends EventEmitter {
               (captured
                 ? `PI stderr captured during startup:\n${captured}`
                 : 'No output captured. Likely causes: PI launched but stdio piping is broken (common with shell:true on Windows), or PI is waiting on input. Try running `pi --mode rpc` directly in cmd to see if RPC mode works standalone.')
-            resolve(this.getStatus())
+            done()
           }
         }, SPAWN_STARTUP_TIMEOUT_MS)
       })
