@@ -146,7 +146,7 @@ Expand-Archive -Path $zip -DestinationPath node_modules\electron\dist -Force
 
 After this, `npm run dev` should work normally.
 
-> **Note:** Windows builds are community-tested. The maintainers do not have a Windows machine. If you hit an issue not listed above, please [open a bug report](https://github.com/FaqFirebase/pi-desktop/issues).
+> **Note:** Windows builds are community-tested. If you hit an issue not listed above, please [open a bug report](https://github.com/FaqFirebase/pi-desktop/issues).
 
 ## License
 
