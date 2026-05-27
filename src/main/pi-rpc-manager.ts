@@ -1,4 +1,4 @@
-import { ChildProcess, SpawnOptions, spawn } from 'child_process'
+import { ChildProcess, SpawnOptions, spawn, spawnSync } from 'child_process'
 import { existsSync } from 'fs'
 import { join, delimiter as PATH_DELIMITER } from 'path'
 import { EventEmitter } from 'events'
@@ -55,28 +55,73 @@ function whichInPath(name: string): string | null {
 }
 
 /**
- * Locate the PI coding agent CLI. Prefers the JS entry point so we can run
- * it with our own Node binary (most robust). Falls back to whichever shim
- * the OS provides if the JS file can't be found.
+ * Ask npm itself where its global prefix is. Most reliable way to find npm
+ * globals across every install method (default Node installer, fnm, nvm,
+ * volta, custom prefixes). Returns null if npm isn't on PATH or errors out.
+ */
+function npmGlobalPrefix(): string | null {
+  try {
+    const result = spawnSync(IS_WINDOWS ? 'npm.cmd' : 'npm', ['prefix', '-g'], {
+      encoding: 'utf-8',
+      shell: IS_WINDOWS,
+      timeout: 5000,
+    })
+    if (result.status === 0 && result.stdout) {
+      const prefix = result.stdout.trim()
+      if (prefix && existsSync(prefix)) return prefix
+    }
+  } catch {
+    // npm not on PATH or other error — fall back to env-based guesses
+  }
+  return null
+}
+
+/**
+ * Locate the PI coding agent CLI. Strategy (most reliable first):
+ *
+ *   1. Ask npm for its global prefix and look there. Works for default
+ *      Node installs, fnm, nvm, volta, pnpm, custom prefixes — anything
+ *      where `npm install -g` actually puts files.
+ *   2. Search PATH for `pi` (respects PATHEXT on Windows for .cmd/.exe).
+ *   3. Fall back to OS-specific guesses for common install paths.
+ *   4. Last resort: bare `pi`/`pi.cmd` (will likely fail with ENOENT).
+ *
+ * Prefers the JS entry point (cli.js) when present so we can spawn it
+ * with our own Node binary — sidesteps the shell-required-for-shim
+ * problem on Windows.
  */
 function findPiBinary(): string {
+  // 1. npm's actual global prefix
+  const prefix = npmGlobalPrefix()
+  if (prefix) {
+    // Default npm layout: <prefix>/node_modules/<package>/dist/cli.js on
+    // Windows, <prefix>/lib/node_modules/... on macOS/Linux.
+    const fromPrefixCandidates = IS_WINDOWS
+      ? [join(prefix, PI_CLI_REL), join(prefix, 'pi.cmd')]
+      : [join(prefix, 'lib', PI_CLI_REL), join(prefix, 'bin', 'pi')]
+    for (const c of fromPrefixCandidates) {
+      if (existsSync(c)) return c
+    }
+  }
+
+  // 2. PATH search (uses Windows PATHEXT for .cmd/.exe/.ps1)
+  const fromPath = whichInPath('pi')
+  if (fromPath) return fromPath
+
+  // 3. OS-specific common locations as fallback
   const home = process.env.HOME ?? process.env.USERPROFILE ?? ''
   const appData = process.env.APPDATA ?? ''
   const localAppData = process.env.LOCALAPPDATA ?? ''
   const programFiles = process.env.ProgramFiles ?? 'C:\\Program Files'
 
   const candidates: string[] = []
-
   if (IS_WINDOWS) {
-    // npm on Windows installs globals under %APPDATA%\npm by default
     if (appData) candidates.push(join(appData, 'npm', PI_CLI_REL))
     if (localAppData) candidates.push(join(localAppData, 'npm', PI_CLI_REL))
     candidates.push(join(programFiles, 'nodejs', PI_CLI_REL))
-    // pnpm / fnm / volta global stores
     if (appData) candidates.push(join(appData, 'npm', 'pi.cmd'))
     if (localAppData) candidates.push(join(localAppData, 'npm', 'pi.cmd'))
   } else {
-    // Linux / macOS
     candidates.push(join(home, '.npm-global', PI_CLI_REL))
     candidates.push(join(home, '.npm-global', 'bin', 'pi'))
     candidates.push(join('/usr/local/lib', PI_CLI_REL))
@@ -85,14 +130,9 @@ function findPiBinary(): string {
     candidates.push('/usr/bin/pi')
     candidates.push(join(home, '.local/bin/pi'))
   }
-
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate
+  for (const c of candidates) {
+    if (existsSync(c)) return c
   }
-
-  // Last resort: search PATH for the shim
-  const fromPath = whichInPath(IS_WINDOWS ? 'pi' : 'pi')
-  if (fromPath) return fromPath
 
   return PI_FALLBACK_BINARY
 }
