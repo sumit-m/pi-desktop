@@ -118,6 +118,8 @@ interface AppState {
   // Session tags
   sessionTags: Record<string, string[]>
   allUsedTags: string[]
+  // Machine-derived tags for sessions the user hasn't tagged (sessionId → tag)
+  autoTags: Record<string, string>
 
   // Archived sessions (GUI-only registry — PI has no archive concept)
   archivedSessions: Record<string, number>
@@ -208,6 +210,8 @@ interface AppActions {
   addSessionTag: (sessionId: string, tag: string) => Promise<void>
   removeSessionTag: (sessionId: string, tag: string) => Promise<void>
   getTagsForSession: (sessionId: string) => string[]
+  ensureAutoTags: (sessions: Array<{ sessionId: string; path: string }>) => Promise<void>
+  removeAutoTag: (sessionId: string) => Promise<void>
 
   // Archive / delete
   loadArchivedSessions: () => Promise<void>
@@ -310,6 +314,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   fileSearchOpen: false,
 
   sessionTags: {},
+  autoTags: {},
   allUsedTags: [],
 
   archivedSessions: {},
@@ -984,11 +989,12 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
 
   loadTags: async () => {
     try {
-      const [allTags, usedTags] = await Promise.all([
+      const [allTags, usedTags, autoTags] = await Promise.all([
         window.piDesktop.tags.getAll(),
         window.piDesktop.tags.getAllUsed(),
+        window.piDesktop.tags.autoGetAll(),
       ])
-      set({ sessionTags: allTags, allUsedTags: usedTags })
+      set({ sessionTags: allTags, allUsedTags: usedTags, autoTags })
     } catch {
       // Silent failure
     }
@@ -997,12 +1003,38 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   addSessionTag: async (sessionId, tag) => {
     try {
       const tags = await window.piDesktop.tags.add(sessionId, tag)
-      set((state) => ({
-        sessionTags: { ...state.sessionTags, [sessionId]: tags },
-      }))
+      set((state) => {
+        // A manual tag supersedes the auto-tag (backend drops it too).
+        const { [sessionId]: _dropped, ...autoTags } = state.autoTags
+        return {
+          sessionTags: { ...state.sessionTags, [sessionId]: tags },
+          autoTags,
+        }
+      })
       // Refresh used tags
       const usedTags = await window.piDesktop.tags.getAllUsed()
       set({ allUsedTags: usedTags })
+    } catch {
+      // Silent failure
+    }
+  },
+
+  ensureAutoTags: async (sessions) => {
+    try {
+      const autoTags = await window.piDesktop.tags.autoEnsure(sessions)
+      set({ autoTags })
+    } catch {
+      // Silent failure
+    }
+  },
+
+  removeAutoTag: async (sessionId) => {
+    try {
+      await window.piDesktop.tags.autoRemove(sessionId)
+      set((state) => {
+        const { [sessionId]: _dropped, ...autoTags } = state.autoTags
+        return { autoTags }
+      })
     } catch {
       // Silent failure
     }
