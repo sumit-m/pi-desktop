@@ -163,8 +163,10 @@ function findPiBinary(): string {
   } else {
     candidates.push(join(home, '.npm-global', PI_CLI_REL))
     candidates.push(join(home, '.npm-global', 'bin', 'pi'))
+    candidates.push(join('/opt/homebrew/lib', PI_CLI_REL))
     candidates.push(join('/usr/local/lib', PI_CLI_REL))
     candidates.push(join('/usr/lib', PI_CLI_REL))
+    candidates.push('/opt/homebrew/bin/pi')
     candidates.push('/usr/local/bin/pi')
     candidates.push('/usr/bin/pi')
     candidates.push(join(home, '.local/bin/pi'))

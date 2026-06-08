@@ -338,9 +338,9 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
       set({ piStatus: status.status, piPid: status.pid, piError: status.error })
 
       if (status.status === 'running') {
-        get().refreshSessionState()
-        get().refreshSessionStats()
-        get().refreshSessionList()
+        await get().refreshSessionState()
+        await get().refreshSessionStats()
+        await get().refreshSessionList()
       }
     } catch (err) {
       set({ piStatus: 'error', piError: err instanceof Error ? err.message : String(err) })
@@ -473,9 +473,9 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
         return
       }
       get().clearMessages()
-      get().refreshSessionState()
-      get().refreshSessionStats()
-      get().refreshSessionList()
+      await get().refreshSessionState()
+      await get().refreshSessionStats()
+      await get().refreshSessionList()
     } catch (err) {
       get().addMessage({
         id: generateId(),
@@ -553,7 +553,30 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   refreshSessionList: async () => {
     try {
       const list = await window.piDesktop.session.list()
-      set({ sessionList: list })
+      const sessionState = get().sessionState
+      const activeWorkspace = get().activeWorkspace
+      const hasActiveSession = sessionState?.sessionFile
+        ? list.some((item) => item.path === sessionState.sessionFile || item.sessionId === sessionState.sessionId)
+        : false
+
+      const sessionList = hasActiveSession
+        ? list
+        : sessionState?.sessionFile
+        ? [
+            {
+              path: sessionState.sessionFile,
+              name: sessionState.sessionName,
+              sessionId: sessionState.sessionId,
+              lastModified: Date.now(),
+              messageCount: sessionState.messageCount,
+              projectPath: activeWorkspace?.path ?? '',
+              projectName: activeWorkspace?.name ?? '',
+            },
+            ...list,
+          ]
+        : list
+
+      set({ sessionList })
     } catch {
       // Silent failure
     }
