@@ -15,15 +15,27 @@ export function NotePicker(): React.JSX.Element | null {
   const activeWorkspace = useAppStore((state) => state.activeWorkspace)
   const setNotePickerOpen = useAppStore((state) => state.setNotePickerOpen)
   const insertPrompt = useAppStore((state) => state.insertPrompt)
+  const setCurrentView = useAppStore((state) => state.setCurrentView)
+
+  const openNotesTab = (): void => {
+    setNotePickerOpen(false)
+    setCurrentView('notes')
+  }
 
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Notes relevant to this context (global + active workspace), ignoring the
+  // search query — used to tell "no notes saved yet" from "no match".
+  const available = useMemo(
+    () => notes.filter((n) => n.scope === GLOBAL_SCOPE || n.scope === activeWorkspace?.id),
+    [notes, activeWorkspace?.id]
+  )
+
   const results = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return notes
-      .filter((n) => n.scope === GLOBAL_SCOPE || n.scope === activeWorkspace?.id)
+    return available
       .filter((n) => {
         if (!q) return true
         return (
@@ -33,7 +45,7 @@ export function NotePicker(): React.JSX.Element | null {
         )
       })
       .sort((a, b) => b.updatedAt - a.updatedAt)
-  }, [notes, query, activeWorkspace?.id])
+  }, [available, query])
 
   // Reset state and focus the input whenever the picker opens.
   useEffect(() => {
@@ -87,7 +99,7 @@ export function NotePicker(): React.JSX.Element | null {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Insert a note..."
+            placeholder="Search saved notes to insert..."
             className="flex-1 bg-transparent text-sm text-neutral-200 placeholder:text-neutral-600 outline-none"
           />
         </div>
@@ -95,7 +107,24 @@ export function NotePicker(): React.JSX.Element | null {
         {/* Results */}
         <div className="max-h-72 overflow-y-auto py-1">
           {results.length === 0 ? (
-            <div className="px-3 py-6 text-center text-sm text-neutral-600">No matching notes</div>
+            <div className="px-3 py-6 text-center text-sm text-neutral-600">
+              {available.length === 0 ? (
+                <>
+                  <p>No saved notes yet.</p>
+                  <p className="mt-1 text-xs">
+                    This picker inserts notes you&apos;ve saved — it&apos;s not a compose box.
+                  </p>
+                  <button
+                    onClick={openNotesTab}
+                    className="mt-3 rounded-md bg-blue-600 px-3 py-1.5 text-xs text-white hover:bg-blue-500 transition-colors"
+                  >
+                    Create a note
+                  </button>
+                </>
+              ) : (
+                'No matching notes'
+              )}
+            </div>
           ) : (
             results.map((note, index) => (
               <button
