@@ -57,6 +57,14 @@ coverage/
 *.msi
 *.pkg
 *.zip
+*.deb
+*.rpm
+*.snap
+*.blockmap
+# electron-builder auto-update metadata
+latest*.yml
+builder-debug.yml
+builder-effective-config.yaml
 
 # Local app state (developer-only)
 .pi-desktop-gui/
@@ -67,9 +75,47 @@ MEMORY.md
 TEST.md
 
 # Local agent / tool config (per-developer, never committed)
+
+# AI Coding Agents
 .serena/
 .claude/
+.claude-code/
 .codex/
 .kilo/
+.roo/
+.cline/
+.aider/
+.continue/
+.openhands/
 .agents/
 .superpowers/
+
+# AI IDEs
+.cursor/
+.windsurf/
+.zed/
+
+# MCP
+.mcp/
+.mcp-server/
+.mcpservers/
+.context7/
+.playwright-mcp/
+
+# Agent Memory / Knowledge
+.openmemory/
+.mem0/
+.memory/
+.knowledge/
+.context/
+
+# Local Developer Config
+.fleet/
+
+# Local Runtime Environments
+.venv/
+.env/
+
+# Worktrees / Local Sandboxes
+.worktrees/
+.sandbox/
