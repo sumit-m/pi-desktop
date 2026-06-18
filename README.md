@@ -2,6 +2,8 @@
 
 A desktop GUI for the [PI coding agent](https://pi.dev). Chat, manage projects, browse files, run commands, install packages — all in one window.
 
+![PI Desktop — Home launcher screen](docs/screenshots/Pi_Home_Screenshot_20260618_090453.png)
+
 Still in alpha — expect rough edges.
 
 ## What it does
@@ -61,6 +63,8 @@ You only need to do this once. If a downloaded `.zip` instead reports the app is
 xattr -dr com.apple.quarantine "/Applications/PI Desktop.app"
 ```
 
+> **Prefer to skip the unsigned-app warnings entirely?** Build from source. A build you compile yourself runs locally without Gatekeeper blocking it, so there's no signing/notarization prompt and no quarantine flag to clear. See [Build it yourself → Linux / macOS](#linux--macos) below.
+
 ### Windows
 
 Download from [Releases](https://github.com/FaqFirebase/pi-desktop/releases): the **installer** (`…-win-x64-setup.exe`, recommended) or the **portable** `…-win-x64.exe`. Builds are unsigned, so SmartScreen may warn — choose **More info → Run anyway**. If file edits or saves fail, see the [Controlled Folder Access](#controlled-folder-access-ransomware-protection) note below. Windows is community-tested; please [open a bug report](https://github.com/FaqFirebase/pi-desktop/issues) if you hit an issue.
@@ -74,6 +78,7 @@ Download from [Releases](https://github.com/FaqFirebase/pi-desktop/releases): th
 | `Escape` | Stop streaming |
 | `Ctrl+P` | Cycle model |
 | `Ctrl+Shift+F` | File search |
+| `Ctrl+Shift+P` | Insert saved note |
 | `Ctrl+N` | New session |
 | `Ctrl+Shift+N` | New workspace |
 | `Ctrl+O` | Open project |

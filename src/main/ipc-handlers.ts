@@ -4,6 +4,7 @@ import { WorkspaceManager } from './workspace-manager'
 import { SessionTagManager } from './session-tags'
 import { ArchivedSessionsManager } from './archived-sessions'
 import { TerminalService } from './terminal-service'
+import { NotesManager } from './notes-manager'
 import { getGuiDataPath } from './app-data-paths'
 import type {
   PiStartOptions,
@@ -12,6 +13,9 @@ import type {
   PermissionMode,
   SessionDeleteResult,
   CatalogPackage,
+  NoteInput,
+  NoteUpdate,
+  NoteScope,
 } from '../shared/ipc-contracts'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 import { readdir, stat, readFile, writeFile, mkdir, access, unlink } from 'fs/promises'
@@ -47,6 +51,47 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function isOptionalString(value: unknown): value is string | undefined {
   return value === undefined || typeof value === 'string'
+}
+
+function parseStringArray(value: unknown, label: string): string[] {
+  if (!Array.isArray(value)) throw new Error(`${label} must be an array`)
+  return value.map(String)
+}
+
+/** Validate the shape of a NoteInput from the renderer (content checks happen in NotesManager). */
+function parseNoteInput(value: unknown): NoteInput {
+  if (!isObject(value)) throw new Error('note must be an object')
+  if (!isString(value.title)) throw new Error('note.title must be a string')
+  if (!isString(value.body)) throw new Error('note.body must be a string')
+  if (!isString(value.scope)) throw new Error('note.scope must be a string')
+  return {
+    title: value.title,
+    body: value.body,
+    scope: value.scope as NoteScope,
+    tags: parseStringArray(value.tags, 'note.tags'),
+  }
+}
+
+/** Validate a partial NoteUpdate; only supplied fields are carried through. */
+function parseNoteUpdate(value: unknown): NoteUpdate {
+  if (!isObject(value)) throw new Error('patch must be an object')
+  const patch: NoteUpdate = {}
+  if (value.title !== undefined) {
+    if (!isString(value.title)) throw new Error('note.title must be a string')
+    patch.title = value.title
+  }
+  if (value.body !== undefined) {
+    if (!isString(value.body)) throw new Error('note.body must be a string')
+    patch.body = value.body
+  }
+  if (value.scope !== undefined) {
+    if (!isString(value.scope)) throw new Error('note.scope must be a string')
+    patch.scope = value.scope as NoteScope
+  }
+  if (value.tags !== undefined) {
+    patch.tags = parseStringArray(value.tags, 'note.tags')
+  }
+  return patch
 }
 
 function isOptionalBoolean(value: unknown): value is boolean | undefined {
@@ -90,6 +135,18 @@ function toolsForPermissionMode(mode: PermissionMode): string | null {
     case 'trusted':
       return null
   }
+}
+
+/**
+ * Opt into resuming the most recent session on launch (PI's --continue) when
+ * the user setting is enabled and the caller hasn't requested a specific
+ * session or an ephemeral (no-session) run.
+ */
+function applyResumePreference(options: PiStartOptions, settings: AppSettings): PiStartOptions {
+  if (settings.resumeLastSession && !options.sessionPath && !options.noSession) {
+    return { ...options, continueSession: true }
+  }
+  return options
 }
 
 function applyPermissionModeToStartOptions(
@@ -147,6 +204,7 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
   const tagManager = new SessionTagManager()
   const archivedSessions = new ArchivedSessionsManager()
   const terminalService = new TerminalService()
+  const notesManager = new NotesManager()
 
   // Helper: get PI manager for active workspace
   function getActivePi(): PiRpcManager {
@@ -184,7 +242,7 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
 
     await workspaceManager.startPiForWorkspace(
       activeWs.id,
-      applyPermissionModeToStartOptions({ ...opts, cwd }, settings)
+      applyPermissionModeToStartOptions(applyResumePreference({ ...opts, cwd }, settings), settings)
     )
     const pi = workspaceManager.getPiManager(activeWs.id)
     if (!pi) throw new Error('Failed to create PI manager')
@@ -212,7 +270,12 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
     if (!pi) throw new Error('No PI manager for workspace')
 
     pi.stop()
-    return pi.start(applyPermissionModeToStartOptions({ cwd: activeWs.path, ...opts }, settings))
+    return pi.start(
+      applyPermissionModeToStartOptions(
+        applyResumePreference({ cwd: activeWs.path, ...opts }, settings),
+        settings
+      )
+    )
   })
 
   ipcMain.handle(IPC_CHANNELS.PI_STATUS, async () => {
@@ -452,6 +515,8 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
   ipcMain.handle(IPC_CHANNELS.WORKSPACE_REMOVE, async (_event, workspaceId: unknown) => {
     if (!isString(workspaceId)) throw new Error('workspaceId must be a string')
     await workspaceManager.removeWorkspace(workspaceId)
+    // Notes scoped to the removed workspace fall back to global so they survive.
+    await notesManager.reassignToGlobal(workspaceId)
   })
 
   ipcMain.handle(IPC_CHANNELS.WORKSPACE_RENAME, async (_event, workspaceId: unknown, name: unknown) => {
@@ -607,6 +672,26 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
     await tagManager.removeAutoTag(sessionId)
   })
 
+  // ─── Notes (reusable prompts / commands) ──────────────────────────────────
+
+  ipcMain.handle(IPC_CHANNELS.NOTES_LIST, async () => {
+    return notesManager.list()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.NOTES_CREATE, async (_event, input: unknown) => {
+    return notesManager.create(parseNoteInput(input))
+  })
+
+  ipcMain.handle(IPC_CHANNELS.NOTES_UPDATE, async (_event, id: unknown, patch: unknown) => {
+    if (!isString(id)) throw new Error('id must be a string')
+    return notesManager.update(id, parseNoteUpdate(patch))
+  })
+
+  ipcMain.handle(IPC_CHANNELS.NOTES_REMOVE, async (_event, id: unknown) => {
+    if (!isString(id)) throw new Error('id must be a string')
+    await notesManager.remove(id)
+  })
+
   // ─── File Operations ────────────────────────────────────────────────────
 
   ipcMain.handle(IPC_CHANNELS.FILE_TREE, async (_event, maxDepth?: unknown) => {
@@ -705,6 +790,10 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
     await shell.openExternal(url)
   })
 
+  ipcMain.handle(IPC_CHANNELS.SYSTEM_GET_VERSION, async () => {
+    return app.getVersion()
+  })
+
   // ─── Extension UI Responses ─────────────────────────────────────────────
 
   ipcMain.handle(IPC_CHANNELS.UI_SELECT_RESPONSE, async (_event, id: unknown, value: unknown) => {
@@ -767,6 +856,13 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
     })
   }
   workspaceManager.onActiveWorkspaceChanged(broadcastActiveStatus)
+
+  // Forward debounced file-change events from the active workspace's watcher
+  // so the renderer can refresh the file tree and git status live. The
+  // WorkspaceManager only watches the active workspace, so no filtering here.
+  workspaceManager.onFileChange((event) => {
+    broadcast(IPC_CHANNELS.EVENT_FILE_CHANGE, event)
+  })
 }
 
 // ─── Validation Helpers ──────────────────────────────────────────────────────
@@ -851,7 +947,7 @@ function desanitizeSessionDir(dirName: string): string {
   }
 
   // Strip wrapping dashes
-  let inner = dirName.slice(2, -2)
+  const inner = dirName.slice(2, -2)
 
   // Split on dash to get path segments
   const segments = inner.split('-')
@@ -1257,6 +1353,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   showThinking: true,
   autoScroll: true,
   permissionMode: 'ask-edits',
+  resumeLastSession: true,
+  collapsedSessionGroups: [],
+  openToHomeOnLaunch: true,
 }
 
 function getSettingsPath(): string {

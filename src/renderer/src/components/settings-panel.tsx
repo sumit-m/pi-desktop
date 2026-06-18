@@ -16,6 +16,8 @@ export function SettingsPanel(): React.JSX.Element {
   const [fontSize, setFontSize] = useState(settings?.fontSize ?? 14)
   const [showThinking, setShowThinking] = useState(settings?.showThinking ?? true)
   const [autoScroll, setAutoScroll] = useState(settings?.autoScroll ?? true)
+  const [resumeLastSession, setResumeLastSession] = useState(settings?.resumeLastSession ?? true)
+  const [openToHomeOnLaunch, setOpenToHomeOnLaunch] = useState(settings?.openToHomeOnLaunch ?? true)
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(
     settings?.permissionMode ?? DEFAULT_PERMISSION_MODE,
   )
@@ -29,6 +31,8 @@ export function SettingsPanel(): React.JSX.Element {
       setFontSize(settings.fontSize)
       setShowThinking(settings.showThinking)
       setAutoScroll(settings.autoScroll)
+      setResumeLastSession(settings.resumeLastSession)
+      setOpenToHomeOnLaunch(settings.openToHomeOnLaunch)
       setPermissionMode(settings.permissionMode)
     }
   }, [settings])
@@ -45,6 +49,8 @@ export function SettingsPanel(): React.JSX.Element {
       fontSize,
       showThinking,
       autoScroll,
+      resumeLastSession,
+      openToHomeOnLaunch,
       permissionMode,
     }
 
@@ -69,6 +75,8 @@ export function SettingsPanel(): React.JSX.Element {
       fontSize: 14,
       showThinking: true,
       autoScroll: true,
+      resumeLastSession: true,
+      openToHomeOnLaunch: true,
       permissionMode: DEFAULT_PERMISSION_MODE,
     }
 
@@ -77,6 +85,8 @@ export function SettingsPanel(): React.JSX.Element {
     setFontSize(defaults.fontSize!)
     setShowThinking(defaults.showThinking!)
     setAutoScroll(defaults.autoScroll!)
+    setResumeLastSession(defaults.resumeLastSession!)
+    setOpenToHomeOnLaunch(defaults.openToHomeOnLaunch!)
     setPermissionMode(defaults.permissionMode!)
 
     const result = await window.piDesktop.settings.save(defaults)
@@ -181,6 +191,20 @@ export function SettingsPanel(): React.JSX.Element {
 
           <SettingsRow label="Auto Scroll" description="Automatically scroll to new messages">
             <Toggle checked={autoScroll} onChange={setAutoScroll} />
+          </SettingsRow>
+
+          <SettingsRow
+            label="Open to Home Screen on Launch"
+            description="Show the Home launcher on startup; PI starts only when you open a workspace or session"
+          >
+            <Toggle checked={openToHomeOnLaunch} onChange={setOpenToHomeOnLaunch} />
+          </SettingsRow>
+
+          <SettingsRow
+            label="Resume Last Session"
+            description="When opening a workspace, continue its most recent session instead of starting a new one"
+          >
+            <Toggle checked={resumeLastSession} onChange={setResumeLastSession} />
           </SettingsRow>
         </SettingsSection>
 

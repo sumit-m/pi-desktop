@@ -8,7 +8,6 @@ import type {
   SessionState,
   SessionStats,
   SessionListItem,
-  ModelInfo,
   AppSettings,
   PiMessageUpdateEvent,
   PiToolExecutionStartEvent,
@@ -26,6 +25,9 @@ import type {
   CatalogPackage,
   TimelineEvent,
   PermissionMode,
+  Note,
+  NoteInput,
+  NoteUpdate,
 } from '../../shared/ipc-contracts'
 
 // ─── Message State (renderer-local, built from events) ───────────────────────
@@ -79,7 +81,7 @@ interface AppState {
   pendingFollowUp: string[]
 
   // UI
-  currentView: 'chat' | 'settings' | 'sessions' | 'timeline' | 'packages' | 'diff'
+  currentView: 'home' | 'chat' | 'settings' | 'sessions' | 'timeline' | 'packages' | 'diff' | 'notes'
   // Chat side panel: which secondary view (file tree or diff) is open in
   // the chat workspace. Lifted into the store so it survives navigating
   // away from chat (e.g. into Settings) and back.
@@ -124,6 +126,16 @@ interface AppState {
   // Archived sessions (GUI-only registry — PI has no archive concept)
   archivedSessions: Record<string, number>
   showArchived: boolean
+
+  // Notes (reusable prompts / commands)
+  notes: Note[]
+  notePickerOpen: boolean
+  // A prompt queued for insertion into the chat input. The nonce lets the
+  // chat input re-apply the same text on repeated inserts.
+  pendingInsert: { text: string; nonce: number } | null
+  // Body text captured (e.g. from a message) to seed a new note in the Notes
+  // panel. Non-null opens the panel's New Note form pre-filled.
+  noteDraft: string | null
 }
 
 interface AppActions {
@@ -168,6 +180,7 @@ interface AppActions {
   toggleTerminal: () => void
   loadSettings: () => Promise<void>
   setPermissionMode: (mode: PermissionMode) => Promise<void>
+  toggleSessionGroupCollapsed: (projectPath: string) => Promise<void>
   loadCommands: () => Promise<void>
 
   // Events
@@ -219,6 +232,17 @@ interface AppActions {
   unarchiveSession: (sessionId: string) => Promise<void>
   deleteSession: (session: SessionListItem) => Promise<{ ok: boolean; method: 'trash' | 'unlink'; error?: string }>
   toggleShowArchived: () => void
+
+  // Notes
+  loadNotes: () => Promise<void>
+  saveNote: (input: NoteInput) => Promise<void>
+  updateNote: (id: string, patch: NoteUpdate) => Promise<void>
+  deleteNote: (id: string) => Promise<void>
+  insertPrompt: (text: string) => void
+  clearPendingInsert: () => void
+  setNotePickerOpen: (open: boolean) => void
+  startNoteFromText: (text: string) => void
+  clearNoteDraft: () => void
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -287,7 +311,9 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   pendingSteering: [],
   pendingFollowUp: [],
 
-  currentView: 'chat',
+  // Default to the Home/launcher view; useInitialize switches to 'chat' when
+  // the openToHomeOnLaunch setting is off (legacy boot-into-chat behavior).
+  currentView: 'home',
   chatSidePanel: null,
   sidebarOpen: true,
   terminalOpen: false,
@@ -319,6 +345,11 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
 
   archivedSessions: {},
   showArchived: false,
+
+  notes: [],
+  notePickerOpen: false,
+  pendingInsert: null,
+  noteDraft: null,
 
   // ─── PI Lifecycle ─────────────────────────────────────────────────────
 
@@ -673,6 +704,15 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
     if (get().piStatus === 'running') {
       await get().restartPi()
     }
+  },
+
+  toggleSessionGroupCollapsed: async (projectPath) => {
+    const current = get().settings?.collapsedSessionGroups ?? []
+    const next = current.includes(projectPath)
+      ? current.filter((p) => p !== projectPath)
+      : [...current, projectPath]
+    const updated = await window.piDesktop.settings.save({ collapsedSessionGroups: next })
+    set({ settings: updated })
   },
 
   loadCommands: async () => {
@@ -1152,6 +1192,50 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   },
 
   toggleShowArchived: () => set((state) => ({ showArchived: !state.showArchived })),
+
+  // ─── Notes ────────────────────────────────────────────────────────────
+
+  loadNotes: async () => {
+    try {
+      const notes = await window.piDesktop.notes.list()
+      set({ notes })
+    } catch {
+      // Silent failure — notes are non-critical
+    }
+  },
+
+  saveNote: async (input) => {
+    const note = await window.piDesktop.notes.create(input)
+    set((state) => ({ notes: [...state.notes, note] }))
+  },
+
+  updateNote: async (id, patch) => {
+    const updated = await window.piDesktop.notes.update(id, patch)
+    set((state) => ({
+      notes: state.notes.map((n) => (n.id === id ? updated : n)),
+    }))
+  },
+
+  deleteNote: async (id) => {
+    await window.piDesktop.notes.remove(id)
+    set((state) => ({ notes: state.notes.filter((n) => n.id !== id) }))
+  },
+
+  insertPrompt: (text) =>
+    set({
+      currentView: 'chat',
+      notePickerOpen: false,
+      pendingInsert: { text, nonce: Date.now() },
+    }),
+
+  clearPendingInsert: () => set({ pendingInsert: null }),
+
+  setNotePickerOpen: (open) => set({ notePickerOpen: open }),
+
+  startNoteFromText: (text) =>
+    set({ noteDraft: text, notePickerOpen: false, currentView: 'notes' }),
+
+  clearNoteDraft: () => set({ noteDraft: null }),
 }))
 
 // ─── Event Handlers ──────────────────────────────────────────────────────────

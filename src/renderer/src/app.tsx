@@ -6,10 +6,13 @@ import { SessionPanel } from './components/session-panel'
 import { Timeline } from './components/timeline'
 import { PackageBrowser } from './components/package-browser'
 import { DiffViewer } from './components/diff-viewer'
+import { HomeScreen } from './components/home-screen'
+import { NotesPanel } from './components/notes-panel'
+import { NotePicker } from './components/note-picker'
 import { ExtensionUiDialog } from './components/extension-ui-dialog'
 import { ReviewRail } from './components/review-rail'
 import { useContextMenu, buildDefaultContextMenu } from './components/context-menu'
-import { usePiEvents, useMenuActions, useInitialize } from './hooks'
+import { usePiEvents, useMenuActions, useInitialize, useNotePickerShortcut } from './hooks'
 import { useAppStore } from './store'
 import { useEffect } from 'react'
 
@@ -17,12 +20,13 @@ export function App(): React.JSX.Element {
   usePiEvents()
   useMenuActions()
   useInitialize()
+  useNotePickerShortcut()
 
   const currentView = useAppStore((state) => state.currentView)
   const sidebarOpen = useAppStore((state) => state.sidebarOpen)
 
   // Global context menu
-  const { show, hide, ContextMenuComponent } = useContextMenu()
+  const { show, ContextMenuComponent } = useContextMenu()
 
   // Override default right-click globally
   useEffect(() => {
@@ -46,26 +50,33 @@ export function App(): React.JSX.Element {
     return () => document.removeEventListener('contextmenu', handleContextMenu)
   }, [show])
 
+  // The Home/launcher view is a full-screen splash: hide the sidebar, review
+  // rail, and status bar so it reads as a standalone landing page.
+  const isHome = currentView === 'home'
+
   return (
     <div className="flex h-screen flex-col bg-neutral-950 text-neutral-100">
       <div className="flex flex-1 overflow-hidden">
-        {sidebarOpen && <Sidebar />}
+        {sidebarOpen && !isHome && <Sidebar />}
 
         <div className="flex min-w-0 flex-1 overflow-hidden">
           <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            {currentView === 'home' && <HomeScreen />}
             {currentView === 'chat' && <ChatPanel />}
             {currentView === 'settings' && <SettingsPanel />}
             {currentView === 'sessions' && <SessionPanel />}
             {currentView === 'timeline' && <Timeline />}
             {currentView === 'packages' && <PackageBrowser />}
             {currentView === 'diff' && <DiffViewer />}
+            {currentView === 'notes' && <NotesPanel />}
           </main>
           {currentView === 'chat' && <ReviewRail />}
         </div>
       </div>
 
-      <StatusBar />
+      {!isHome && <StatusBar />}
       <ExtensionUiDialog />
+      <NotePicker />
       {ContextMenuComponent}
     </div>
   )

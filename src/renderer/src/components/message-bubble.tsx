@@ -11,16 +11,12 @@ import {
   Wrench,
   Brain,
   Bot,
-  User,
   Edit3,
   GitBranch,
   RotateCcw,
   Download,
   FileText,
-  Trash2,
   Send,
-  X,
-  Paperclip,
   Terminal,
   Search,
   Globe,
@@ -83,8 +79,10 @@ function MessageBubbleImpl({
   // Context menu for message-specific actions
   const { show: showContextMenu, ContextMenuComponent: MessageContextMenu } = useContextMenu()
 
+  const startNoteFromText = useAppStore((state) => state.startNoteFromText)
+
   const handleMessageContextMenu = (e: React.MouseEvent) => {
-    showContextMenu(e, buildMessageContextMenu(message.content))
+    showContextMenu(e, buildMessageContextMenu(message.content, startNoteFromText))
   }
 
   if (message.role === 'user') {
@@ -97,7 +95,6 @@ function MessageBubbleImpl({
         editContent={editContent}
         onEditContentChange={setEditContent}
         onCopy={handleCopy}
-        copied={copied}
         onEdit={handleEdit}
         onSaveEdit={handleSaveEdit}
         onCancelEdit={handleCancelEdit}
@@ -160,7 +157,6 @@ function UserMessage({
   editContent,
   onEditContentChange,
   onCopy,
-  copied,
   onEdit,
   onSaveEdit,
   onCancelEdit,
@@ -173,7 +169,6 @@ function UserMessage({
   editContent: string
   onEditContentChange: (v: string) => void
   onCopy: () => void
-  copied: boolean
   onEdit: () => void
   onSaveEdit: () => void
   onCancelEdit: () => void

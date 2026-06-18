@@ -132,15 +132,49 @@ export function useInitialize(): void {
 
     const initialize = async (): Promise<void> => {
       await loadSettings()
+      const openToHome = useAppStore.getState().settings?.openToHomeOnLaunch ?? true
+
+      // PI-free data needed by both Home and Chat.
       await loadWorkspaces()
+      await refreshSessionList()
+      await useAppStore.getState().loadTags()
+      await useAppStore.getState().loadArchivedSessions()
+      await useAppStore.getState().loadNotes()
+
+      if (openToHome) {
+        // Land on the Home/launcher screen; PI starts lazily on first action.
+        useAppStore.getState().setCurrentView('home')
+        return
+      }
+
+      // Legacy: boot into Chat and resume the last session.
+      useAppStore.getState().setCurrentView('chat')
       await startPi()
       await refreshSessionState()
       await refreshSessionStats()
       await refreshSessionList()
-      await useAppStore.getState().loadTags()
-      await useAppStore.getState().loadArchivedSessions()
     }
 
     initialize()
   }, [startPi, loadSettings, loadWorkspaces, refreshSessionState, refreshSessionStats, refreshSessionList])
+}
+
+/**
+ * Global shortcut (Ctrl+Shift+P) that toggles the quick note picker, letting
+ * the user insert a saved prompt from anywhere in the app. (Ctrl+Shift+N is
+ * reserved for the New Workspace menu accelerator.)
+ */
+export function useNotePickerShortcut(): void {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'P' || e.key === 'p')) {
+        e.preventDefault()
+        const { notePickerOpen, setNotePickerOpen } = useAppStore.getState()
+        setNotePickerOpen(!notePickerOpen)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 }

@@ -13,10 +13,14 @@ import type {
   CatalogPackage,
   FileTreeNode,
   FileSearchResult,
+  FileChangeEvent,
   GitFileStatus,
   TerminalExitEvent,
   TerminalStartOptions,
   TerminalStartResult,
+  Note,
+  NoteInput,
+  NoteUpdate,
 } from '../shared/ipc-contracts'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 
@@ -124,6 +128,14 @@ interface PiDesktopAPI {
     autoRemove(sessionId: string): Promise<void>
   }
 
+  // Notes (reusable prompts / commands)
+  notes: {
+    list(): Promise<Note[]>
+    create(input: NoteInput): Promise<Note>
+    update(id: string, patch: NoteUpdate): Promise<Note>
+    remove(id: string): Promise<void>
+  }
+
   // File operations
   files: {
     getTree(maxDepth?: number): Promise<FileTreeNode>
@@ -143,6 +155,7 @@ interface PiDesktopAPI {
     openDialog(options?: { title?: string }): Promise<string | null>
     getPath(name: string): Promise<string>
     openExternal(url: string): Promise<void>
+    getVersion(): Promise<string>
   }
 
   terminal: {
@@ -165,6 +178,7 @@ interface PiDesktopAPI {
   // Event subscription
   onEvent(callback: (event: PiRpcEvent) => void): () => void
   onStatusChange(callback: (status: PiStatus) => void): () => void
+  onFileChange(callback: (event: FileChangeEvent) => void): () => void
   onMenuAction(callback: (action: string) => void): () => void
 }
 
@@ -263,6 +277,13 @@ const api: PiDesktopAPI = {
     autoRemove: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.TAG_AUTO_REMOVE, sessionId),
   },
 
+  notes: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.NOTES_LIST),
+    create: (input) => ipcRenderer.invoke(IPC_CHANNELS.NOTES_CREATE, input),
+    update: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.NOTES_UPDATE, id, patch),
+    remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.NOTES_REMOVE, id),
+  },
+
   files: {
     getTree: (maxDepth) => ipcRenderer.invoke(IPC_CHANNELS.FILE_TREE, maxDepth),
     search: (query) => ipcRenderer.invoke(IPC_CHANNELS.FILE_SEARCH, query),
@@ -280,6 +301,7 @@ const api: PiDesktopAPI = {
     openDialog: (options) => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_OPEN_DIALOG, options),
     getPath: (name) => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_GET_PATH, name),
     openExternal: (url) => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_OPEN_EXTERNAL, url),
+    getVersion: () => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_GET_VERSION),
   },
 
   terminal: {
@@ -319,6 +341,14 @@ const api: PiDesktopAPI = {
     ipcRenderer.on('pi:status-change', handler)
     return () => {
       ipcRenderer.removeListener('pi:status-change', handler)
+    }
+  },
+
+  onFileChange: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: FileChangeEvent) => callback(data)
+    ipcRenderer.on(IPC_CHANNELS.EVENT_FILE_CHANGE, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.EVENT_FILE_CHANGE, handler)
     }
   },
 

@@ -62,6 +62,7 @@ export const IPC_CHANNELS = {
   SYSTEM_OPEN_DIALOG: 'system:open-dialog',
   SYSTEM_GET_PATH: 'system:get-path',
   SYSTEM_OPEN_EXTERNAL: 'system:open-external',
+  SYSTEM_GET_VERSION: 'system:get-version',
 
   // Workspaces
   WORKSPACE_LIST: 'workspace:list',
@@ -113,8 +114,15 @@ export const IPC_CHANNELS = {
   TAG_AUTO_ENSURE: 'tag:auto-ensure',
   TAG_AUTO_REMOVE: 'tag:auto-remove',
 
+  // Notes (reusable prompts / commands)
+  NOTES_LIST: 'notes:list',
+  NOTES_CREATE: 'notes:create',
+  NOTES_UPDATE: 'notes:update',
+  NOTES_REMOVE: 'notes:remove',
+
   // Events (main → renderer)
   EVENT_PI: 'event:pi',
+  EVENT_FILE_CHANGE: 'event:file-change',
   EVENT_TERMINAL_DATA: 'event:terminal-data',
   EVENT_TERMINAL_EXIT: 'event:terminal-exit',
 } as const
@@ -135,6 +143,10 @@ export interface PiStartOptions {
   provider?: string
   sessionPath?: string
   noSession?: boolean
+  // When true (and neither sessionPath nor noSession is set), PI is launched
+  // with --continue so it resumes the most recent session for the cwd instead
+  // of creating a fresh one.
+  continueSession?: boolean
   args?: string[]
   env?: Record<string, string>
 }
@@ -497,6 +509,15 @@ export interface AppSettings {
   showThinking: boolean
   autoScroll: boolean
   permissionMode: PermissionMode
+  // Resume the most recent session for the workspace on launch (via PI's
+  // --continue) instead of starting a fresh session.
+  resumeLastSession: boolean
+  // Project paths whose session group is collapsed in the Sessions panel.
+  // Persisted so the collapsed/expanded layout survives navigation and restarts.
+  collapsedSessionGroups: string[]
+  // Show the Home/launcher screen on launch (PI starts lazily on first action)
+  // instead of booting straight into Chat. When false, legacy behavior applies.
+  openToHomeOnLaunch: boolean
 }
 
 // ─── Workspace Types ────────────────────────────────────────────────────────
@@ -509,6 +530,37 @@ export interface Workspace {
   lastActiveAt: number
   color: string
 }
+
+// ─── Notes Types ────────────────────────────────────────────────────────────
+
+/**
+ * Scope of a note. Either the literal `'global'` (available everywhere) or a
+ * workspace id (only surfaced when that workspace is active). Stored as a
+ * single field so all notes live in one store and the UI merges by scope.
+ */
+export type NoteScope = 'global' | string
+
+/** A reusable prompt or agent command the user has saved. */
+export interface Note {
+  id: string
+  title: string
+  body: string
+  tags: string[]
+  scope: NoteScope
+  createdAt: number
+  updatedAt: number
+}
+
+/** Fields supplied when creating a note. */
+export interface NoteInput {
+  title: string
+  body: string
+  tags: string[]
+  scope: NoteScope
+}
+
+/** Mutable fields when updating a note. */
+export type NoteUpdate = Partial<NoteInput>
 
 // ─── Package Types ──────────────────────────────────────────────────────────
 
@@ -567,6 +619,17 @@ export interface FileSearchResult {
   matchType: 'filename' | 'content'
   line?: number
   snippet?: string
+}
+
+/**
+ * Emitted (main → renderer, debounced) when files change on disk in the
+ * active workspace. The renderer should refresh the file tree and git status
+ * wholesale; `changeType`/`relativePath` describe the most recent change in
+ * the debounce window and are informational, not an exhaustive change list.
+ */
+export interface FileChangeEvent {
+  changeType: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir'
+  relativePath: string
 }
 
 export interface DiffHunk {
