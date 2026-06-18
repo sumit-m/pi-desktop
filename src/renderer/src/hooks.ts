@@ -132,14 +132,27 @@ export function useInitialize(): void {
 
     const initialize = async (): Promise<void> => {
       await loadSettings()
+      const openToHome = useAppStore.getState().settings?.openToHomeOnLaunch ?? true
+
+      // PI-free data needed by both Home and Chat.
       await loadWorkspaces()
-      await startPi()
-      await refreshSessionState()
-      await refreshSessionStats()
       await refreshSessionList()
       await useAppStore.getState().loadTags()
       await useAppStore.getState().loadArchivedSessions()
       await useAppStore.getState().loadNotes()
+
+      if (openToHome) {
+        // Land on the Home/launcher screen; PI starts lazily on first action.
+        useAppStore.getState().setCurrentView('home')
+        return
+      }
+
+      // Legacy: boot into Chat and resume the last session.
+      useAppStore.getState().setCurrentView('chat')
+      await startPi()
+      await refreshSessionState()
+      await refreshSessionStats()
+      await refreshSessionList()
     }
 
     initialize()

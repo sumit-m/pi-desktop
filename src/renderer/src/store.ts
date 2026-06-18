@@ -81,7 +81,7 @@ interface AppState {
   pendingFollowUp: string[]
 
   // UI
-  currentView: 'chat' | 'settings' | 'sessions' | 'timeline' | 'packages' | 'diff' | 'notes'
+  currentView: 'home' | 'chat' | 'settings' | 'sessions' | 'timeline' | 'packages' | 'diff' | 'notes'
   // Chat side panel: which secondary view (file tree or diff) is open in
   // the chat workspace. Lifted into the store so it survives navigating
   // away from chat (e.g. into Settings) and back.
@@ -311,7 +311,9 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   pendingSteering: [],
   pendingFollowUp: [],
 
-  currentView: 'chat',
+  // Default to the Home/launcher view; useInitialize switches to 'chat' when
+  // the openToHomeOnLaunch setting is off (legacy boot-into-chat behavior).
+  currentView: 'home',
   chatSidePanel: null,
   sidebarOpen: true,
   terminalOpen: false,

@@ -62,6 +62,7 @@ export const IPC_CHANNELS = {
   SYSTEM_OPEN_DIALOG: 'system:open-dialog',
   SYSTEM_GET_PATH: 'system:get-path',
   SYSTEM_OPEN_EXTERNAL: 'system:open-external',
+  SYSTEM_GET_VERSION: 'system:get-version',
 
   // Workspaces
   WORKSPACE_LIST: 'workspace:list',
@@ -514,6 +515,9 @@ export interface AppSettings {
   // Project paths whose session group is collapsed in the Sessions panel.
   // Persisted so the collapsed/expanded layout survives navigation and restarts.
   collapsedSessionGroups: string[]
+  // Show the Home/launcher screen on launch (PI starts lazily on first action)
+  // instead of booting straight into Chat. When false, legacy behavior applies.
+  openToHomeOnLaunch: boolean
 }
 
 // ─── Workspace Types ────────────────────────────────────────────────────────

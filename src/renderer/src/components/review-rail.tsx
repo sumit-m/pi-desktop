@@ -162,7 +162,7 @@ export function ReviewRail(): React.JSX.Element {
   )
 }
 
-function formatGitStatus(status: GitFileStatus): string {
+export function formatGitStatus(status: GitFileStatus): string {
   if (status.index === '?' && status.worktree === '?') return 'NEW'
   if (status.index === 'D' || status.worktree === 'D') return 'DEL'
   if (status.index === 'A') return 'ADD'

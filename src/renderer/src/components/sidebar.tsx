@@ -1,6 +1,7 @@
 import { useAppStore } from '../store'
 import { clsx } from 'clsx'
 import {
+  Home,
   MessageSquare,
   Settings,
   FolderOpen,
@@ -135,6 +136,12 @@ export function Sidebar(): React.JSX.Element {
 
       {/* Navigation */}
       <nav className="px-2 py-1">
+        <SidebarItem
+          icon={<Home size={14} />}
+          label="Home"
+          active={currentView === 'home'}
+          onClick={() => setCurrentView('home')}
+        />
         <SidebarItem
           icon={<MessageSquare size={14} />}
           label="Chat"

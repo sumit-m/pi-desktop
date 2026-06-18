@@ -6,6 +6,7 @@ import { SessionPanel } from './components/session-panel'
 import { Timeline } from './components/timeline'
 import { PackageBrowser } from './components/package-browser'
 import { DiffViewer } from './components/diff-viewer'
+import { HomeScreen } from './components/home-screen'
 import { NotesPanel } from './components/notes-panel'
 import { NotePicker } from './components/note-picker'
 import { ExtensionUiDialog } from './components/extension-ui-dialog'
@@ -49,13 +50,18 @@ export function App(): React.JSX.Element {
     return () => document.removeEventListener('contextmenu', handleContextMenu)
   }, [show])
 
+  // The Home/launcher view is a full-screen splash: hide the sidebar, review
+  // rail, and status bar so it reads as a standalone landing page.
+  const isHome = currentView === 'home'
+
   return (
     <div className="flex h-screen flex-col bg-neutral-950 text-neutral-100">
       <div className="flex flex-1 overflow-hidden">
-        {sidebarOpen && <Sidebar />}
+        {sidebarOpen && !isHome && <Sidebar />}
 
         <div className="flex min-w-0 flex-1 overflow-hidden">
           <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            {currentView === 'home' && <HomeScreen />}
             {currentView === 'chat' && <ChatPanel />}
             {currentView === 'settings' && <SettingsPanel />}
             {currentView === 'sessions' && <SessionPanel />}
@@ -68,7 +74,7 @@ export function App(): React.JSX.Element {
         </div>
       </div>
 
-      <StatusBar />
+      {!isHome && <StatusBar />}
       <ExtensionUiDialog />
       <NotePicker />
       {ContextMenuComponent}

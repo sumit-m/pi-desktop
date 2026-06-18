@@ -790,6 +790,10 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
     await shell.openExternal(url)
   })
 
+  ipcMain.handle(IPC_CHANNELS.SYSTEM_GET_VERSION, async () => {
+    return app.getVersion()
+  })
+
   // ─── Extension UI Responses ─────────────────────────────────────────────
 
   ipcMain.handle(IPC_CHANNELS.UI_SELECT_RESPONSE, async (_event, id: unknown, value: unknown) => {
@@ -1351,6 +1355,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   permissionMode: 'ask-edits',
   resumeLastSession: true,
   collapsedSessionGroups: [],
+  openToHomeOnLaunch: true,
 }
 
 function getSettingsPath(): string {

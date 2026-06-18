@@ -155,6 +155,7 @@ interface PiDesktopAPI {
     openDialog(options?: { title?: string }): Promise<string | null>
     getPath(name: string): Promise<string>
     openExternal(url: string): Promise<void>
+    getVersion(): Promise<string>
   }
 
   terminal: {
@@ -300,6 +301,7 @@ const api: PiDesktopAPI = {
     openDialog: (options) => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_OPEN_DIALOG, options),
     getPath: (name) => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_GET_PATH, name),
     openExternal: (url) => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_OPEN_EXTERNAL, url),
+    getVersion: () => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_GET_VERSION),
   },
 
   terminal: {
