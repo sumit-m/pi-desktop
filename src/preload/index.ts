@@ -66,6 +66,8 @@ interface PiDesktopAPI {
     unarchive(sessionId: string): Promise<ArchivedSessionsMap>
     listArchived(): Promise<ArchivedSessionsMap>
     getLineage(): Promise<SessionLineageRecord[]>
+    compact(customInstructions?: string): Promise<unknown>
+    setAutoCompaction(enabled: boolean): Promise<unknown>
   }
 
   // Model management
@@ -223,6 +225,8 @@ const api: PiDesktopAPI = {
     exportHtml: (outputPath) => ipcRenderer.invoke(IPC_CHANNELS.SESSION_EXPORT_HTML, outputPath),
     getForkMessages: () => ipcRenderer.invoke(IPC_CHANNELS.SESSION_GET_FORK_MESSAGES),
     getLineage: () => ipcRenderer.invoke(IPC_CHANNELS.SESSION_GET_LINEAGE),
+    compact: (customInstructions) => ipcRenderer.invoke(IPC_CHANNELS.SESSION_COMPACT, customInstructions),
+    setAutoCompaction: (enabled) => ipcRenderer.invoke(IPC_CHANNELS.SESSION_SET_AUTO_COMPACTION, enabled),
     delete: (sessionPath) => ipcRenderer.invoke(IPC_CHANNELS.SESSION_DELETE, sessionPath),
     archive: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.SESSION_ARCHIVE, sessionId),
     unarchive: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.SESSION_UNARCHIVE, sessionId),

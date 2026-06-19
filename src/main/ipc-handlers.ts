@@ -540,6 +540,19 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
     return readSessionLineage()
   })
 
+  ipcMain.handle(IPC_CHANNELS.SESSION_COMPACT, async (_event, customInstructions?: unknown) => {
+    const cmd: Record<string, unknown> = { type: 'compact' }
+    if (isString(customInstructions) && customInstructions.length > 0) {
+      cmd.customInstructions = customInstructions
+    }
+    return getActivePi().sendCommand(cmd)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.SESSION_SET_AUTO_COMPACTION, async (_event, enabled: unknown) => {
+    if (typeof enabled !== 'boolean') throw new Error('enabled must be a boolean')
+    return getActivePi().sendCommand({ type: 'set_auto_compaction', enabled })
+  })
+
   // ─── Model Management ───────────────────────────────────────────────────
 
   ipcMain.handle(IPC_CHANNELS.MODEL_SET, async (_event, provider: unknown, modelId: unknown) => {

@@ -191,6 +191,10 @@ interface AppActions {
   setThinkingLevel: (level: string) => Promise<void>
   cycleThinkingLevel: () => Promise<void>
 
+  // Context compaction
+  compactContext: () => Promise<void>
+  setAutoCompaction: (enabled: boolean) => Promise<void>
+
   // UI
   setCurrentView: (view: AppState['currentView']) => void
   setChatSidePanel: (panel: AppState['chatSidePanel']) => void
@@ -729,6 +733,27 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   cycleThinkingLevel: async () => {
     try {
       await window.piDesktop.thinking.cycleLevel()
+      get().refreshSessionState()
+    } catch {
+      // Silent failure
+    }
+  },
+
+  compactContext: async () => {
+    try {
+      await window.piDesktop.session.compact()
+      // compaction_start/end events drive the chat system messages; refresh
+      // state + stats so the context-usage figures update afterwards.
+      get().refreshSessionState()
+      get().refreshSessionStats()
+    } catch {
+      // Silent failure
+    }
+  },
+
+  setAutoCompaction: async (enabled) => {
+    try {
+      await window.piDesktop.session.setAutoCompaction(enabled)
       get().refreshSessionState()
     } catch {
       // Silent failure
