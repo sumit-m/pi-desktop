@@ -89,6 +89,10 @@ export const IPC_CHANNELS = {
   COMMANDS_LIST: 'commands:list',
   MCP_SERVERS_LIST: 'mcp:servers-list',
 
+  // Models config
+  MODELS_READ: 'models:read',
+  MODELS_WRITE: 'models:write',
+
   // File operations
   FILE_TREE: 'file:tree',
   FILE_SEARCH: 'file:search',
@@ -430,6 +434,11 @@ export interface SessionDeleteResult {
 export type ArchivedSessionsMap = Record<string, number>
 
 export type { SessionLineageRecord } from './session-lineage'
+export type { ModelsConfig, ProviderConfig, CustomModel } from './models-config'
+
+import type { ModelsConfig as ModelsConfigType } from './models-config'
+/** Result of the MODELS_READ IPC call. */
+export type ModelsReadResult = { config: ModelsConfigType } | { error: string; raw: string }
 
 // ─── Agent Message Types ────────────────────────────────────────────────────
 

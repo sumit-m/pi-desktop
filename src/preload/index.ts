@@ -23,6 +23,8 @@ import type {
   NoteUpdate,
   UpdateCheckResult,
   SessionLineageRecord,
+  ModelsConfig,
+  ModelsReadResult,
 } from '../shared/ipc-contracts'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 
@@ -108,6 +110,12 @@ interface PiDesktopAPI {
     remove(spec: string): Promise<{ success: boolean; output: string }>
     update(spec?: string): Promise<{ success: boolean; output: string }>
     fetchCatalog(query?: string, page?: number): Promise<CatalogPackage[]>
+  }
+
+  // Models config (read/write ~/.pi/agent/models.json)
+  models: {
+    read(): Promise<ModelsReadResult>
+    write(config: ModelsConfig): Promise<{ success: boolean; error?: string }>
   }
 
   // Skills, Commands, MCP, Tags
@@ -265,6 +273,11 @@ const api: PiDesktopAPI = {
     remove: (spec) => ipcRenderer.invoke(IPC_CHANNELS.PACKAGE_REMOVE, spec),
     update: (spec) => ipcRenderer.invoke(IPC_CHANNELS.PACKAGE_UPDATE, spec),
     fetchCatalog: (query, page) => ipcRenderer.invoke(IPC_CHANNELS.PACKAGE_CATALOG_FETCH, query, page),
+  },
+
+  models: {
+    read: () => ipcRenderer.invoke(IPC_CHANNELS.MODELS_READ),
+    write: (config) => ipcRenderer.invoke(IPC_CHANNELS.MODELS_WRITE, config),
   },
 
   skills: {

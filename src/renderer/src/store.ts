@@ -4,6 +4,7 @@ import { buildPlanningPrompt } from './utils/planning-prompt'
 import type { PiCommand } from '../../shared/pi-command'
 import { normalizeForkMessages, type ForkPoint } from '../../shared/fork-point'
 import { buildLineageTree, type LineageNode } from '../../shared/session-lineage'
+import { validateModelsConfig, mergeModelsConfig, type ModelsConfig } from '../../shared/models-config'
 import type {
   PiRpcEvent,
   PiStatus,
@@ -115,6 +116,10 @@ interface AppState {
 
   // Skills
   installedSkills: InstalledSkill[]
+
+  // Custom models config (~/.pi/agent/models.json)
+  customModels: ModelsConfig | null
+  customModelsError: string | null
 
   // File preview
   selectedFile: { relativePath: string; path: string } | null
@@ -233,6 +238,10 @@ interface AppActions {
 
   // Skills
   loadSkills: () => Promise<void>
+
+  // Custom models config
+  loadCustomModels: () => Promise<void>
+  saveCustomModels: (edited: ModelsConfig) => Promise<{ ok: boolean; errors?: string[] }>
 
   // File preview
   setSelectedFile: (relativePath: string | null, path: string | null) => void
@@ -365,6 +374,9 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   packageNotification: null,
 
   installedSkills: [],
+
+  customModels: null,
+  customModelsError: null,
 
   selectedFile: null,
 
@@ -1129,6 +1141,30 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
     } catch {
       // Silent failure
     }
+  },
+
+  loadCustomModels: async () => {
+    try {
+      const result = await window.piDesktop.models.read()
+      if ('error' in result) {
+        set({ customModels: null, customModelsError: result.error })
+      } else {
+        set({ customModels: result.config, customModelsError: null })
+      }
+    } catch (err) {
+      set({ customModels: null, customModelsError: err instanceof Error ? err.message : String(err) })
+    }
+  },
+
+  saveCustomModels: async (edited) => {
+    const errors = validateModelsConfig(edited)
+    if (errors.length > 0) return { ok: false, errors }
+    const original = get().customModels ?? { providers: {} }
+    const merged = mergeModelsConfig(original, edited)
+    const result = await window.piDesktop.models.write(merged)
+    if (!result.success) return { ok: false, errors: [result.error ?? 'Write failed'] }
+    await get().loadCustomModels()
+    return { ok: true }
   },
 
   setSelectedFile: (relativePath, path) => {

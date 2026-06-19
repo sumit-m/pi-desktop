@@ -17,6 +17,8 @@ import type {
   NoteUpdate,
   NoteScope,
   UpdateCheckResult,
+  ModelsConfig,
+  ModelsReadResult,
 } from '../shared/ipc-contracts'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 import type { SessionLineageRecord } from '../shared/session-lineage'
@@ -699,6 +701,45 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
   ipcMain.handle(IPC_CHANNELS.MCP_SERVERS_LIST, async () => {
     const ws = workspaceManager.getActiveWorkspace()
     return listMcpServers(ws?.path)
+  })
+
+  // ─── Models Config ──────────────────────────────────────────────────────
+
+  ipcMain.handle(IPC_CHANNELS.MODELS_READ, async (): Promise<ModelsReadResult> => {
+    const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? ''
+    const file = join(homeDir, '.pi', 'agent', 'models.json')
+    if (!existsSync(file)) return { config: { providers: {} } }
+    let raw: string
+    try {
+      raw = await readFile(file, 'utf-8')
+    } catch (err) {
+      return { error: `Could not read models.json: ${err instanceof Error ? err.message : String(err)}`, raw: '' }
+    }
+    try {
+      const parsed = JSON.parse(raw) as ModelsConfig
+      if (typeof parsed !== 'object' || parsed === null || typeof parsed.providers !== 'object') {
+        return { error: 'models.json is not a valid models config (missing "providers")', raw }
+      }
+      return { config: parsed }
+    } catch (err) {
+      return { error: `models.json is not valid JSON: ${err instanceof Error ? err.message : String(err)}`, raw }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.MODELS_WRITE, async (_event, config: unknown): Promise<{ success: boolean; error?: string }> => {
+    if (typeof config !== 'object' || config === null || typeof (config as ModelsConfig).providers !== 'object') {
+      return { success: false, error: 'Invalid models config' }
+    }
+    const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? ''
+    const dir = join(homeDir, '.pi', 'agent')
+    const file = join(dir, 'models.json')
+    try {
+      if (!existsSync(dir)) await mkdir(dir, { recursive: true })
+      await writeFile(file, JSON.stringify(config, null, 2) + '\n', 'utf-8')
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
   })
 
   // ─── Session Tags ───────────────────────────────────────────────────────
