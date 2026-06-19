@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { applyTheme } from './utils/theme'
 import { buildPlanningPrompt } from './utils/planning-prompt'
 import type { PiCommand } from '../../shared/pi-command'
+import { normalizeForkMessages, type ForkPoint } from '../../shared/fork-point'
 import type {
   PiRpcEvent,
   PiStatus,
@@ -67,6 +68,7 @@ interface AppState {
   sessionState: SessionState | null
   sessionStats: SessionStats | null
   sessionList: SessionListItem[]
+  forkMessages: ForkPoint[]
 
   // Messages
   messages: DisplayMessage[]
@@ -167,10 +169,14 @@ interface AppActions {
   // Session
   createNewSession: () => Promise<void>
   switchSession: (path: string) => Promise<void>
+  reloadActiveSession: () => Promise<void>
   refreshSessionState: () => Promise<void>
   refreshSessionStats: () => Promise<void>
   refreshSessionList: () => Promise<void>
   setSessionName: (name: string) => Promise<void>
+  loadForkMessages: () => Promise<void>
+  forkFrom: (entryId: string) => Promise<void>
+  cloneBranch: () => Promise<void>
 
   // Model
   setModel: (provider: string, modelId: string) => Promise<void>
@@ -314,6 +320,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   sessionState: null,
   sessionStats: null,
   sessionList: [],
+  forkMessages: [],
 
   messages: [],
   streamingContent: '',
@@ -546,20 +553,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
         })
         return
       }
-      get().clearMessages()
-      get().refreshSessionState()
-      get().refreshSessionStats()
-      // Reload messages for the new session
-      const response = await window.piDesktop.session.getMessages()
-      if (response && typeof response === 'object') {
-        const resp = response as { success?: boolean; data?: { messages?: unknown[] } }
-        if (resp.success && resp.data?.messages) {
-          const loaded = (resp.data.messages as unknown[])
-            .map(parseAgentMessage)
-            .filter((m): m is DisplayMessage => m !== null)
-          set({ messages: loaded })
-        }
-      }
+      await get().reloadActiveSession()
     } catch (err) {
       get().addMessage({
         id: generateId(),
@@ -568,6 +562,23 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
         timestamp: Date.now(),
       })
     }
+  },
+
+  reloadActiveSession: async () => {
+    get().clearMessages()
+    get().refreshSessionState()
+    get().refreshSessionStats()
+    const response = await window.piDesktop.session.getMessages()
+    if (response && typeof response === 'object') {
+      const resp = response as { success?: boolean; data?: { messages?: unknown[] } }
+      if (resp.success && resp.data?.messages) {
+        const loaded = (resp.data.messages as unknown[])
+          .map(parseAgentMessage)
+          .filter((m): m is DisplayMessage => m !== null)
+        set({ messages: loaded })
+      }
+    }
+    get().refreshSessionList()
   },
 
   refreshSessionState: async () => {
@@ -636,6 +647,29 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
       get().refreshSessionState()
     } catch {
       // Silent failure
+    }
+  },
+
+  loadForkMessages: async () => {
+    try {
+      const raw = await window.piDesktop.session.getForkMessages()
+      set({ forkMessages: normalizeForkMessages(raw) })
+    } catch {
+      set({ forkMessages: [] })
+    }
+  },
+
+  forkFrom: async (entryId) => {
+    const result = (await window.piDesktop.session.fork(entryId)) as { success?: boolean } | null
+    if (result?.success) {
+      await get().reloadActiveSession()
+    }
+  },
+
+  cloneBranch: async () => {
+    const result = (await window.piDesktop.session.clone()) as { success?: boolean } | null
+    if (result?.success) {
+      await get().reloadActiveSession()
     }
   },
 
