@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { applyTheme } from './utils/theme'
 import { buildPlanningPrompt } from './utils/planning-prompt'
+import type { PiCommand } from '../../shared/pi-command'
 import type {
   PiRpcEvent,
   PiStatus,
@@ -90,7 +91,7 @@ interface AppState {
   sidebarOpen: boolean
   terminalOpen: boolean
   settings: AppSettings | null
-  commands: Array<{ name: string; description: string; source: string }>
+  commands: PiCommand[]
 
   // Extension UI
   extensionUiRequest: PiExtensionUiRequest | null
@@ -728,10 +729,20 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
 
   loadCommands: async () => {
     try {
-      // Commands are loaded via RPC get_commands
-      set({ commands: [] })
+      const raw = await window.piDesktop.piCommands.list()
+      const commands: PiCommand[] = Array.isArray(raw)
+        ? raw
+            .filter((c): c is Record<string, unknown> => typeof c === 'object' && c !== null)
+            .map((c) => ({
+              name: String(c.name ?? ''),
+              description: String(c.description ?? ''),
+              source: typeof c.source === 'string' ? c.source : 'extension',
+            }))
+            .filter((c) => c.name.length > 0)
+        : []
+      set({ commands })
     } catch {
-      // Silent failure
+      set({ commands: [] })
     }
   },
 
@@ -866,6 +877,10 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
           piPid: statusEvent.pid,
           piError: statusEvent.error,
         })
+        if (statusEvent.status === 'running') {
+          get().loadCommands()
+          get().loadSkills()
+        }
         break
       }
     }
