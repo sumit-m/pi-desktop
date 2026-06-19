@@ -56,6 +56,22 @@ export function App(): React.JSX.Element {
     return () => document.removeEventListener('contextmenu', handleContextMenu)
   }, [show])
 
+  // Global command palette launcher (Ctrl/Cmd+K). Opens in insert-at-caret mode
+  // so it does not overwrite anything already typed in the composer.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault()
+        const state = useAppStore.getState()
+        if (state.piStatus === 'running') {
+          state.setCommandPalette(true, '', false)
+        }
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   // The Home/launcher view is a full-screen splash: hide the sidebar, review
   // rail, and status bar so it reads as a standalone landing page.
   const isHome = currentView === 'home'
