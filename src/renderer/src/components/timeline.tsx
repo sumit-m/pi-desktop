@@ -14,8 +14,10 @@ import {
   Trash2,
   Clock,
   GitFork,
+  GitBranch,
   Copy,
 } from 'lucide-react'
+import type { LineageNode } from '../../../shared/session-lineage'
 
 export function Timeline(): React.JSX.Element {
   const timelineEvents = useAppStore((state) => state.timelineEvents)
@@ -25,6 +27,9 @@ export function Timeline(): React.JSX.Element {
   const forkFrom = useAppStore((state) => state.forkFrom)
   const cloneBranch = useAppStore((state) => state.cloneBranch)
   const loadLineage = useAppStore((state) => state.loadLineage)
+  const lineage = useAppStore((state) => state.lineage)
+  const currentSessionFile = useAppStore((state) => state.sessionState?.sessionFile ?? null)
+  const switchSession = useAppStore((state) => state.switchSession)
 
   useEffect(() => {
     loadForkMessages()
@@ -69,6 +74,14 @@ export function Timeline(): React.JSX.Element {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+        {lineage.length > 0 && (
+          <div className="mt-3 border-t border-neutral-800 pt-2">
+            <div className="mb-1 text-[10px] uppercase tracking-wide text-neutral-600">
+              Session tree
+            </div>
+            <LineageTree nodes={lineage} currentPath={currentSessionFile} onSwitch={switchSession} />
           </div>
         )}
       </div>
@@ -222,4 +235,46 @@ function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`
   return `${Math.floor(ms / 60_000)}m ${Math.floor((ms % 60_000) / 1000)}s`
+}
+
+function LineageTree({
+  nodes,
+  depth = 0,
+  currentPath,
+  onSwitch,
+}: {
+  nodes: LineageNode[]
+  depth?: number
+  currentPath: string | null
+  onSwitch: (path: string) => void
+}): React.JSX.Element {
+  return (
+    <div className="space-y-0.5">
+      {nodes.map((node) => (
+        <div key={node.path}>
+          <button
+            onClick={() => onSwitch(node.path)}
+            style={{ paddingLeft: `${depth * 14 + 8}px` }}
+            className={clsx(
+              'flex w-full items-center gap-2 rounded py-1 pr-2 text-left text-xs transition-colors',
+              node.path === currentPath
+                ? 'bg-blue-900/30 text-blue-300'
+                : 'text-neutral-400 hover:bg-neutral-800/50'
+            )}
+          >
+            <GitBranch size={11} className="shrink-0 text-neutral-600" />
+            <span className="truncate">{node.name ?? node.sessionId.slice(0, 8)}</span>
+          </button>
+          {node.children.length > 0 && (
+            <LineageTree
+              nodes={node.children}
+              depth={depth + 1}
+              currentPath={currentPath}
+              onSwitch={onSwitch}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  )
 }
