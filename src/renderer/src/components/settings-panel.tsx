@@ -56,9 +56,10 @@ export function SettingsPanel(): React.JSX.Element {
 
   // Keep the timeout draft in sync with the persisted value (e.g. after a save
   // clamps it, or when settings first load).
+  const councilTimeout = settings?.council?.timeoutSeconds
   useEffect(() => {
-    if (settings?.council) setTimeoutDraft(String(settings.council.timeoutSeconds))
-  }, [settings?.council?.timeoutSeconds])
+    if (councilTimeout !== undefined) setTimeoutDraft(String(councilTimeout))
+  }, [councilTimeout])
 
   // Merge a council patch into the current config and persist via the store mechanism
   const saveCouncil = async (patch: Partial<CouncilConfig>): Promise<void> => {
