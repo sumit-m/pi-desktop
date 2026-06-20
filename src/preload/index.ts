@@ -169,7 +169,6 @@ interface PiDesktopAPI {
     getStagedDiff(filePath?: string): Promise<string>
     getGitStatus(): Promise<Record<string, GitFileStatus>>
     getGitBranch(): Promise<string | null>
-    isTextFile(path: string): boolean
   }
 
   // System
@@ -204,7 +203,6 @@ interface PiDesktopAPI {
 
   // Event subscription
   onEvent(callback: (event: PiRpcEvent) => void): () => void
-  onStatusChange(callback: (status: PiStatus) => void): () => void
   onFileChange(callback: (event: FileChangeEvent) => void): () => void
   onMenuAction(callback: (action: string) => void): () => void
 }
@@ -338,7 +336,6 @@ const api: PiDesktopAPI = {
     getStagedDiff: (filePath) => ipcRenderer.invoke(IPC_CHANNELS.FILE_STAGED_DIFF, filePath),
     getGitStatus: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STATUS),
     getGitBranch: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_BRANCH),
-    isTextFile: (_path) => true, // Checked on main side
   },
 
   system: {
@@ -381,14 +378,6 @@ const api: PiDesktopAPI = {
     ipcRenderer.on(IPC_CHANNELS.EVENT_PI, handler)
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.EVENT_PI, handler)
-    }
-  },
-
-  onStatusChange: (callback) => {
-    const handler = (_event: Electron.IpcRendererEvent, data: PiStatus) => callback(data)
-    ipcRenderer.on('pi:status-change', handler)
-    return () => {
-      ipcRenderer.removeListener('pi:status-change', handler)
     }
   },
 
