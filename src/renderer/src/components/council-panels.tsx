@@ -7,6 +7,11 @@ const STATUS_LABEL: Record<string, string> = {
   errored: 'errored',
 }
 
+const AGENT_LABEL: Record<string, string> = {
+  claude: 'Claude',
+  codex: 'Codex',
+}
+
 export function CouncilPanels(): React.JSX.Element | null {
   const run = useAppStore((s) => s.councilRun)
   const approve = useAppStore((s) => s.approveCouncilPlan)
@@ -21,12 +26,32 @@ export function CouncilPanels(): React.JSX.Element | null {
 
       {run.phase === 'refused' && <div className="text-sm text-amber-400">{run.reason}</div>}
 
+      {/* Live streaming view while consultants are working. */}
+      {run.phase === 'consulting' && (run.members?.length ?? 0) > 0 && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {run.members!.map((id) => {
+            const text = run.partials?.[id] ?? ''
+            return (
+              <div key={id} className="rounded border border-neutral-800 bg-neutral-950 p-2">
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-sm text-neutral-200">{AGENT_LABEL[id] ?? id}</span>
+                  <span className="text-xs text-blue-400">{text ? 'streaming…' : 'working…'}</span>
+                </div>
+                <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-xs text-neutral-400">
+                  {text}
+                </pre>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       {run.results.length > 0 && (
         <div className="grid gap-2 sm:grid-cols-2">
           {run.results.map((r) => (
             <div key={r.id} className="rounded border border-neutral-800 bg-neutral-950 p-2">
               <div className="mb-1 flex items-center justify-between">
-                <span className="text-sm text-neutral-200">{r.id === 'claude' ? 'Claude' : 'Codex'}</span>
+                <span className="text-sm text-neutral-200">{AGENT_LABEL[r.id] ?? r.id}</span>
                 <span
                   className={`text-xs ${r.status === 'contributed' ? 'text-green-400' : 'text-amber-400'}`}
                 >

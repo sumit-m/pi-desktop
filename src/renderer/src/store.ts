@@ -73,6 +73,10 @@ export interface CouncilRunState {
   phase: CouncilPhase
   request: string
   results: ConsultantResult[]
+  // Active consultants for this run (used to render live cards while consulting).
+  members?: CouncilAgentId[]
+  // Live output streamed per consultant during the consulting phase.
+  partials?: Record<string, string>
   reason?: string
 }
 
@@ -573,13 +577,36 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
       return
     }
 
-    set({ councilRun: { phase: 'consulting', request, results: [] } })
-    const { results } = await window.piDesktop.council.runConsultants({
-      request,
-      members: resolution.active,
-      timeoutSeconds: config.timeoutSeconds,
-      consensusMode: config.consensusMode,
+    set({
+      councilRun: {
+        phase: 'consulting',
+        request,
+        results: [],
+        members: resolution.active,
+        partials: {},
+      },
     })
+
+    // Stream live consultant output into councilRun.partials while consulting.
+    const unsubscribe = window.piDesktop.council.onProgress(({ id, chunk }) => {
+      const run = get().councilRun
+      if (!run || run.phase !== 'consulting') return
+      const partials = { ...(run.partials ?? {}) }
+      partials[id] = (partials[id] ?? '') + chunk
+      set({ councilRun: { ...run, partials } })
+    })
+
+    let results
+    try {
+      ;({ results } = await window.piDesktop.council.runConsultants({
+        request,
+        members: resolution.active,
+        timeoutSeconds: config.timeoutSeconds,
+        consensusMode: config.consensusMode,
+      }))
+    } finally {
+      unsubscribe()
+    }
 
     if (!hasQuorum(results)) {
       set({

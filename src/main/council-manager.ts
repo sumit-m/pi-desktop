@@ -1,7 +1,12 @@
 import { spawn } from 'child_process'
 import { StringDecoder } from 'string_decoder'
 import type { CouncilAgentId, ConsensusMode, ConsultantResult } from '../shared/council-config'
-import { buildConsultantPrompt, buildDebatePrompt, buildConsultantCommand } from '../shared/council-config'
+import {
+  buildConsultantPrompt,
+  buildDebatePrompt,
+  buildConsultantCommand,
+  parseClaudeStreamLine,
+} from '../shared/council-config'
 import { detectAgents } from './agent-detection'
 
 const IS_WINDOWS = process.platform === 'win32'
@@ -15,12 +20,16 @@ export interface SpawnOutcome {
   timedOut?: boolean
 }
 
+/** Called with each readable text chunk as a consultant produces output. */
+export type ConsultantChunkHandler = (chunk: string) => void
+
 /** Injectable spawn so orchestration is testable without real CLIs. */
 export type SpawnConsultant = (
   id: CouncilAgentId,
   prompt: string,
   cwd: string,
   timeoutMs: number,
+  onChunk?: ConsultantChunkHandler,
 ) => Promise<SpawnOutcome>
 
 export interface RunConsultantsParams {
@@ -33,6 +42,8 @@ export interface RunConsultantsParams {
 
 export interface ConsultantDeps {
   spawnConsultant: SpawnConsultant
+  /** Notified with live output chunks per consultant, for streaming to the UI. */
+  onProgress?: (id: CouncilAgentId, chunk: string) => void
 }
 
 const MIN_DEBATE_PARTICIPANTS = 2
@@ -55,8 +66,12 @@ export async function runConsultants(
   const timeoutMs = params.timeoutSeconds * MS_PER_SECOND
   const prompt = buildConsultantPrompt(params.request)
 
+  const forward = (id: CouncilAgentId): ConsultantChunkHandler => (chunk) => deps.onProgress?.(id, chunk)
+
   const round1 = await Promise.all(
-    params.members.map(async (id) => toResult(id, await deps.spawnConsultant(id, prompt, params.cwd, timeoutMs))),
+    params.members.map(async (id) =>
+      toResult(id, await deps.spawnConsultant(id, prompt, params.cwd, timeoutMs, forward(id))),
+    ),
   )
 
   if (params.consensusMode !== 'debate') return round1
@@ -69,14 +84,14 @@ export async function runConsultants(
       if (r.status !== 'contributed') return r
       const others = contributed.filter((o) => o.id !== r.id)
       const debatePrompt = buildDebatePrompt(params.request, r.id, others)
-      return toResult(r.id, await deps.spawnConsultant(r.id, debatePrompt, params.cwd, timeoutMs))
+      return toResult(r.id, await deps.spawnConsultant(r.id, debatePrompt, params.cwd, timeoutMs, forward(r.id)))
     }),
   )
   return round2
 }
 
-/** Default spawn: run the consultant CLI, capture stdout, enforce timeout. */
-export const defaultSpawnConsultant: SpawnConsultant = (id, prompt, cwd, timeoutMs) =>
+/** Default spawn: run the consultant CLI, stream output, enforce timeout. */
+export const defaultSpawnConsultant: SpawnConsultant = (id, prompt, cwd, timeoutMs, onChunk) =>
   new Promise<SpawnOutcome>((resolve) => {
     const { file, args } = buildConsultantCommand(id, resolveExecutable(id), prompt)
     // stdin is closed ('ignore'): consultant CLIs take the prompt as an
@@ -95,6 +110,31 @@ export const defaultSpawnConsultant: SpawnConsultant = (id, prompt, cwd, timeout
     let stderr = ''
     let settled = false
 
+    // Claude emits JSONL (--output-format stream-json); we parse it into readable
+    // text deltas. Codex emits plain text, streamed through as-is.
+    const isClaude = id === 'claude'
+    let lineBuffer = ''
+    let claudeText = ''
+    let claudeFinal: string | undefined
+
+    const applyClaudeLine = (line: string): void => {
+      const { delta, final } = parseClaudeStreamLine(line)
+      if (delta) {
+        claudeText += delta
+        onChunk?.(delta)
+      }
+      if (typeof final === 'string') claudeFinal = final
+    }
+
+    const consumeClaude = (text: string): void => {
+      lineBuffer += text
+      let nl: number
+      while ((nl = lineBuffer.indexOf('\n')) !== -1) {
+        applyClaudeLine(lineBuffer.slice(0, nl))
+        lineBuffer = lineBuffer.slice(nl + 1)
+      }
+    }
+
     const finish = (outcome: SpawnOutcome): void => {
       if (settled) return
       settled = true
@@ -105,18 +145,30 @@ export const defaultSpawnConsultant: SpawnConsultant = (id, prompt, cwd, timeout
     const timer = setTimeout(() => {
       child.kill('SIGTERM')
       setTimeout(() => child.kill('SIGKILL'), FORCE_KILL_TIMEOUT_MS)
-      finish({ ok: false, output: stdout, timedOut: true })
+      finish({ ok: false, output: isClaude ? claudeText : stdout, timedOut: true })
     }, timeoutMs)
 
-    child.stdout?.on('data', (d: Buffer) => { stdout += outDecoder.write(d) })
+    child.stdout?.on('data', (d: Buffer) => {
+      const text = outDecoder.write(d)
+      stdout += text
+      if (isClaude) consumeClaude(text)
+      else onChunk?.(text)
+    })
     child.stderr?.on('data', (d: Buffer) => { stderr += errDecoder.write(d) })
     child.on('error', (err) => finish({ ok: false, output: stdout, error: err.message }))
     child.on('close', (code) => {
-      if (code === 0) finish({ ok: true, output: stdout })
-      // Some CLIs (e.g. Claude on an auth failure) print the real reason to
-      // stdout, not stderr. Surface stdout as the error when stderr is empty so
-      // the consultant card shows something actionable instead of "exit code N".
-      else finish({ ok: false, output: stdout, error: stderr.trim() || stdout.trim() || `exit code ${code}` })
+      if (isClaude && lineBuffer) applyClaudeLine(lineBuffer)
+      if (code === 0) {
+        // For Claude prefer the parsed final/streamed text; fall back to raw
+        // stdout if parsing yielded nothing.
+        const output = isClaude ? (claudeFinal ?? claudeText) || stdout : stdout
+        finish({ ok: true, output })
+      } else {
+        // Some CLIs (e.g. Claude on an auth failure) print the real reason to
+        // stdout, not stderr. Surface stdout as the error when stderr is empty so
+        // the consultant card shows something actionable instead of "exit code N".
+        finish({ ok: false, output: stdout, error: stderr.trim() || stdout.trim() || `exit code ${code}` })
+      }
     })
   })
 

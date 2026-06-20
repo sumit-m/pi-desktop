@@ -160,8 +160,54 @@ export function buildConsultantCommand(
 ): { file: string; args: string[] } {
   switch (id) {
     case 'claude':
-      return { file: executable, args: ['-p', prompt, '--permission-mode', 'plan'] }
+      // stream-json + partial messages let us render Claude's plan live as it
+      // is generated (plain `-p` text mode only prints the final answer at the
+      // end). `--verbose` is required by Claude when combining `-p` with
+      // `--output-format stream-json`.
+      return {
+        file: executable,
+        args: [
+          '-p',
+          prompt,
+          '--permission-mode',
+          'plan',
+          '--output-format',
+          'stream-json',
+          '--include-partial-messages',
+          '--verbose',
+        ],
+      }
     case 'codex':
       return { file: executable, args: ['exec', '--sandbox', 'read-only', prompt] }
   }
+}
+
+/**
+ * Parse one line of Claude's `--output-format stream-json` output. Returns the
+ * human-readable text delta (for live streaming) and/or the final result text.
+ * Irrelevant lines and invalid JSON yield an empty object.
+ */
+export function parseClaudeStreamLine(line: string): { delta?: string; final?: string } {
+  const trimmed = line.trim()
+  if (!trimmed) return {}
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(trimmed)
+  } catch {
+    return {}
+  }
+  if (typeof parsed !== 'object' || parsed === null) return {}
+  const obj = parsed as Record<string, unknown>
+  if (obj.type === 'stream_event') {
+    const event = obj.event as Record<string, unknown> | undefined
+    if (event?.type === 'content_block_delta') {
+      const delta = event.delta as Record<string, unknown> | undefined
+      if (typeof delta?.text === 'string') return { delta: delta.text }
+    }
+    return {}
+  }
+  if (obj.type === 'result' && typeof obj.result === 'string') {
+    return { final: obj.result }
+  }
+  return {}
 }

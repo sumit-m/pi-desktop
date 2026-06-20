@@ -788,7 +788,10 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
 
       const results = await runConsultants(
         { request: payload.request, members, cwd, timeoutSeconds, consensusMode },
-        { spawnConsultant: defaultSpawnConsultant },
+        {
+          spawnConsultant: defaultSpawnConsultant,
+          onProgress: (id, chunk) => broadcast(IPC_CHANNELS.EVENT_COUNCIL_PROGRESS, { id, chunk }),
+        },
       )
       return { results }
     },

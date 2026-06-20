@@ -98,6 +98,7 @@ import {
   buildConsensusPrompt,
   buildDebatePrompt,
   buildConsultantCommand,
+  parseClaudeStreamLine,
   clampTimeoutSeconds,
   MIN_TIMEOUT_SECONDS,
   MAX_TIMEOUT_SECONDS,
@@ -166,4 +167,31 @@ test('consultant command uses read-only flags per agent', () => {
   assert.equal(codex.file, '/usr/bin/codex')
   assert.ok(codex.args.includes('exec'))
   assert.ok(codex.args.includes('PROMPT'))
+})
+
+test('claude command requests stream-json for live output', () => {
+  const claude = buildConsultantCommand('claude', '/usr/bin/claude', 'PROMPT')
+  assert.ok(claude.args.includes('--output-format'))
+  assert.ok(claude.args.includes('stream-json'))
+  assert.ok(claude.args.includes('--include-partial-messages'))
+  assert.ok(claude.args.includes('--verbose'))
+})
+
+test('parseClaudeStreamLine extracts a text delta', () => {
+  const line = JSON.stringify({
+    type: 'stream_event',
+    event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hello' } },
+  })
+  assert.deepEqual(parseClaudeStreamLine(line), { delta: 'Hello' })
+})
+
+test('parseClaudeStreamLine extracts the final result', () => {
+  const line = JSON.stringify({ type: 'result', subtype: 'success', result: 'FINAL PLAN' })
+  assert.deepEqual(parseClaudeStreamLine(line), { final: 'FINAL PLAN' })
+})
+
+test('parseClaudeStreamLine ignores irrelevant lines and bad JSON', () => {
+  assert.deepEqual(parseClaudeStreamLine(''), {})
+  assert.deepEqual(parseClaudeStreamLine('not json'), {})
+  assert.deepEqual(parseClaudeStreamLine(JSON.stringify({ type: 'system', subtype: 'init' })), {})
 })

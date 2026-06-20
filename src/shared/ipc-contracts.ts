@@ -136,6 +136,7 @@ export const IPC_CHANNELS = {
   EVENT_FILE_CHANGE: 'event:file-change',
   EVENT_TERMINAL_DATA: 'event:terminal-data',
   EVENT_TERMINAL_EXIT: 'event:terminal-exit',
+  EVENT_COUNCIL_PROGRESS: 'event:council-progress',
 } as const
 
 // ─── PI Process Types ───────────────────────────────────────────────────────
@@ -469,6 +470,16 @@ export interface CouncilRunRequest {
 /** Result of COUNCIL_RUN_CONSULTANTS. */
 export interface CouncilRunResult {
   results: ConsultantResultType[]
+}
+
+/**
+ * Streamed live during a council run (main → renderer on EVENT_COUNCIL_PROGRESS).
+ * `chunk` is human-readable text appended to the consultant's live output:
+ * raw stdout for Codex, parsed text deltas for Claude.
+ */
+export interface CouncilProgressEvent {
+  id: CouncilAgentIdType
+  chunk: string
 }
 
 import type { ModelsConfig as ModelsConfigType } from './models-config'

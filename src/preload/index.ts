@@ -28,6 +28,7 @@ import type {
   CouncilDetectResult,
   CouncilRunRequest,
   CouncilRunResult,
+  CouncilProgressEvent,
 } from '../shared/ipc-contracts'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 
@@ -124,6 +125,7 @@ interface PiDesktopAPI {
   council: {
     detect(): Promise<CouncilDetectResult>
     runConsultants(payload: CouncilRunRequest): Promise<CouncilRunResult>
+    onProgress(callback: (event: CouncilProgressEvent) => void): () => void
   }
 
   // Skills, Commands, MCP, Tags
@@ -291,6 +293,11 @@ const api: PiDesktopAPI = {
   council: {
     detect: () => ipcRenderer.invoke(IPC_CHANNELS.COUNCIL_DETECT),
     runConsultants: (payload) => ipcRenderer.invoke(IPC_CHANNELS.COUNCIL_RUN_CONSULTANTS, payload),
+    onProgress: (callback) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: CouncilProgressEvent) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.EVENT_COUNCIL_PROGRESS, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.EVENT_COUNCIL_PROGRESS, handler)
+    },
   },
 
   skills: {

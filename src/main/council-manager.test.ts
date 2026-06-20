@@ -45,3 +45,17 @@ test('debate mode performs a second spawn round per member', async () => {
   assert.equal(calls.length, 4)
   assert.ok(results.find((r) => r.id === 'claude')!.plan!.includes('r2'))
 })
+
+test('onProgress receives streamed chunks tagged by consultant', async () => {
+  const events: Array<{ id: CouncilAgentId; chunk: string }> = []
+  const spawn: SpawnConsultant = async (id, _prompt, _cwd, _ms, onChunk) => {
+    onChunk?.(`${id}-chunk`)
+    return { ok: true, output: `PLAN ${id}` }
+  }
+  await runConsultants(
+    { request: 'r', members: ['claude', 'codex'], cwd: '/tmp', timeoutSeconds: 1, consensusMode: 'arbiter' },
+    { spawnConsultant: spawn, onProgress: (id, chunk) => events.push({ id, chunk }) },
+  )
+  assert.ok(events.some((e) => e.id === 'claude' && e.chunk === 'claude-chunk'))
+  assert.ok(events.some((e) => e.id === 'codex' && e.chunk === 'codex-chunk'))
+})
