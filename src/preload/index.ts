@@ -25,6 +25,9 @@ import type {
   SessionLineageRecord,
   ModelsConfig,
   ModelsReadResult,
+  CouncilDetectResult,
+  CouncilRunRequest,
+  CouncilRunResult,
 } from '../shared/ipc-contracts'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 
@@ -116,6 +119,11 @@ interface PiDesktopAPI {
   models: {
     read(): Promise<ModelsReadResult>
     write(config: ModelsConfig): Promise<{ success: boolean; error?: string }>
+  }
+
+  council: {
+    detect(): Promise<CouncilDetectResult>
+    runConsultants(payload: CouncilRunRequest): Promise<CouncilRunResult>
   }
 
   // Skills, Commands, MCP, Tags
@@ -278,6 +286,11 @@ const api: PiDesktopAPI = {
   models: {
     read: () => ipcRenderer.invoke(IPC_CHANNELS.MODELS_READ),
     write: (config) => ipcRenderer.invoke(IPC_CHANNELS.MODELS_WRITE, config),
+  },
+
+  council: {
+    detect: () => ipcRenderer.invoke(IPC_CHANNELS.COUNCIL_DETECT),
+    runConsultants: (payload) => ipcRenderer.invoke(IPC_CHANNELS.COUNCIL_RUN_CONSULTANTS, payload),
   },
 
   skills: {
