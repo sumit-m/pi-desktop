@@ -34,6 +34,9 @@ export function SettingsPanel(): React.JSX.Element {
     claude: false,
     codex: false,
   })
+  // Free-text draft for the timeout field so the user can clear it and type a
+  // new value; it is clamped and persisted only on blur / Enter (not per keystroke).
+  const [timeoutDraft, setTimeoutDraft] = useState('')
 
   // Detect available council agents on mount
   useEffect(() => {
@@ -50,6 +53,12 @@ export function SettingsPanel(): React.JSX.Element {
       cancelled = true
     }
   }, [])
+
+  // Keep the timeout draft in sync with the persisted value (e.g. after a save
+  // clamps it, or when settings first load).
+  useEffect(() => {
+    if (settings?.council) setTimeoutDraft(String(settings.council.timeoutSeconds))
+  }, [settings?.council?.timeoutSeconds])
 
   // Merge a council patch into the current config and persist via the store mechanism
   const saveCouncil = async (patch: Partial<CouncilConfig>): Promise<void> => {
@@ -323,10 +332,18 @@ export function SettingsPanel(): React.JSX.Element {
                   type="number"
                   min={COUNCIL_MIN_TIMEOUT}
                   max={COUNCIL_MAX_TIMEOUT}
-                  value={settings.council.timeoutSeconds}
-                  onChange={(e) =>
-                    void saveCouncil({ timeoutSeconds: clampCouncilTimeout(Number(e.target.value)) })
-                  }
+                  value={timeoutDraft}
+                  onChange={(e) => setTimeoutDraft(e.target.value)}
+                  onBlur={() => {
+                    const clamped = clampCouncilTimeout(Number(timeoutDraft))
+                    setTimeoutDraft(String(clamped))
+                    if (clamped !== settings.council.timeoutSeconds) {
+                      void saveCouncil({ timeoutSeconds: clamped })
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                  }}
                   className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 focus:border-blue-500 focus:outline-none"
                 />
               </SettingsRow>
