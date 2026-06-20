@@ -113,7 +113,10 @@ export const defaultSpawnConsultant: SpawnConsultant = (id, prompt, cwd, timeout
     child.on('error', (err) => finish({ ok: false, output: stdout, error: err.message }))
     child.on('close', (code) => {
       if (code === 0) finish({ ok: true, output: stdout })
-      else finish({ ok: false, output: stdout, error: stderr.trim() || `exit code ${code}` })
+      // Some CLIs (e.g. Claude on an auth failure) print the real reason to
+      // stdout, not stderr. Surface stdout as the error when stderr is empty so
+      // the consultant card shows something actionable instead of "exit code N".
+      else finish({ ok: false, output: stdout, error: stderr.trim() || stdout.trim() || `exit code ${code}` })
     })
   })
 
