@@ -8,6 +8,7 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 const AGENT_LABEL: Record<string, string> = {
+  pi: 'PI',
   claude: 'Claude',
   codex: 'Codex',
 }

@@ -1,7 +1,10 @@
-/** Consultant agents the council can include. PI is always the builder/arbiter. */
-export type CouncilAgentId = 'claude' | 'codex'
+/**
+ * Council member agents. All three can produce an initial plan; PI is also
+ * always the builder/arbiter that merges the plans into the final consensus.
+ */
+export type CouncilAgentId = 'pi' | 'claude' | 'codex'
 
-export const COUNCIL_AGENT_IDS: CouncilAgentId[] = ['claude', 'codex']
+export const COUNCIL_AGENT_IDS: CouncilAgentId[] = ['pi', 'claude', 'codex']
 
 /** How PI reconciles consultant plans into one. */
 export type ConsensusMode = 'arbiter' | 'debate'
@@ -27,13 +30,17 @@ export function clampTimeoutSeconds(raw: number): number {
 
 export const DEFAULT_COUNCIL_CONFIG: CouncilConfig = {
   enabled: false,
-  members: { claude: true, codex: true },
-  consensusMode: 'arbiter',
+  members: { pi: true, claude: true, codex: true },
+  // Debate by default so members see each other's plans and visibly converge.
+  consensusMode: 'debate',
   // Real repo planning often takes minutes; 90s was too tight in practice.
   timeoutSeconds: 240,
 }
 
 const VALID_CONSENSUS_MODES: ConsensusMode[] = ['arbiter', 'debate']
+
+/** A council needs at least this many participants to be worth running. */
+const MIN_COUNCIL_MEMBERS = 2
 
 /** Validate a council config. Returns human-readable errors; empty means valid. */
 export function validateCouncilConfig(config: CouncilConfig): string[] {
@@ -60,17 +67,17 @@ export interface ConsultantResult {
 }
 
 export interface MemberResolution {
-  /** True when the feature is enabled and >= 1 consultant is checked+detected. */
+  /** True when the feature is enabled and enough members are checked+detected. */
   canRun: boolean
-  /** Consultant ids that are both checked and detected. */
+  /** Member ids that are both checked and detected. */
   active: CouncilAgentId[]
   /** Why the run cannot proceed, when canRun is false. */
   reason?: string
 }
 
 /**
- * Resolve which consultants will run. PI is always the builder/arbiter and is
- * never in this list. Requires at least one other agent to reach consensus.
+ * Resolve which members will plan. PI plans (when checked) and always merges the
+ * results as arbiter. Requires at least two participants to be a real council.
  */
 export function resolveActiveMembers(
   config: CouncilConfig,
@@ -80,11 +87,11 @@ export function resolveActiveMembers(
   if (!config.enabled) {
     return { canRun: false, active, reason: 'Council planning is disabled in Settings.' }
   }
-  if (active.length < 1) {
+  if (active.length < MIN_COUNCIL_MEMBERS) {
     return {
       canRun: false,
       active,
-      reason: 'Council needs at least one other agent. Install or enable Claude or Codex, or turn the council off.',
+      reason: `Council needs at least ${MIN_COUNCIL_MEMBERS} agents. Install or enable PI, Claude, or Codex, or turn the council off.`,
     }
   }
   return { canRun: true, active }
@@ -96,6 +103,7 @@ export function hasQuorum(results: ConsultantResult[]): boolean {
 }
 
 const AGENT_LABELS: Record<CouncilAgentId, string> = {
+  pi: 'PI',
   claude: 'Claude',
   codex: 'Codex',
 }
@@ -160,6 +168,14 @@ export function buildConsultantCommand(
   prompt: string,
 ): { file: string; args: string[] } {
   switch (id) {
+    case 'pi':
+      // Non-interactive JSON mode streams the same events the app already speaks.
+      // Exclude write tools so the planning run stays read-only; --no-session
+      // keeps it ephemeral.
+      return {
+        file: executable,
+        args: ['-p', '--mode', 'json', '--no-session', '--exclude-tools', 'edit,write', prompt],
+      }
     case 'claude':
       // stream-json + partial messages let us render Claude's plan live as it
       // is generated (plain `-p` text mode only prints the final answer at the
@@ -237,5 +253,29 @@ export function parseCodexStreamLine(line: string): { plan?: string; display?: s
   if (item.type === 'agent_message' && text) return { plan: text }
   if (text) return { display: text }
   if (typeof item.summary === 'string') return { display: item.summary }
+  return {}
+}
+
+/**
+ * Parse one line of PI's `--mode json` (JSONL) output. `plan` is assistant text
+ * (belongs in the final plan); `display` is thinking shown live but excluded
+ * from the plan. Irrelevant lines and invalid JSON yield an empty object.
+ */
+export function parsePiStreamLine(line: string): { plan?: string; display?: string } {
+  const trimmed = line.trim()
+  if (!trimmed) return {}
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(trimmed)
+  } catch {
+    return {}
+  }
+  if (typeof parsed !== 'object' || parsed === null) return {}
+  const obj = parsed as Record<string, unknown>
+  if (obj.type !== 'message_update') return {}
+  const event = obj.assistantMessageEvent as Record<string, unknown> | undefined
+  if (!event || typeof event.delta !== 'string') return {}
+  if (event.type === 'text_delta') return { plan: event.delta }
+  if (event.type === 'thinking_delta') return { display: event.delta }
   return {}
 }

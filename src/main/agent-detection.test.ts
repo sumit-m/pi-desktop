@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import { candidatePaths, AGENT_BINARIES } from './agent-detection'
 
 test('every agent has a binary base name', () => {
+  assert.equal(AGENT_BINARIES.pi, 'pi')
   assert.equal(AGENT_BINARIES.claude, 'claude')
   assert.equal(AGENT_BINARIES.codex, 'codex')
 })

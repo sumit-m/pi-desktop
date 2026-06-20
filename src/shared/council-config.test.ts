@@ -40,11 +40,11 @@ import {
   type ConsultantResult,
 } from './council-config'
 
-const allDetected = { claude: true, codex: true }
+const allDetected = { pi: true, claude: true, codex: true }
 
-test('resolves checked-and-detected consultants', () => {
+test('resolves checked-and-detected members', () => {
   const r = resolveActiveMembers(DEFAULT_COUNCIL_CONFIG_ENABLED(), allDetected)
-  assert.deepEqual(r.active.sort(), ['claude', 'codex'])
+  assert.deepEqual(r.active.sort(), ['claude', 'codex', 'pi'])
   assert.equal(r.canRun, true)
 })
 
@@ -52,19 +52,19 @@ test('excludes unchecked members', () => {
   const cfg = DEFAULT_COUNCIL_CONFIG_ENABLED()
   cfg.members.codex = false
   const r = resolveActiveMembers(cfg, allDetected)
-  assert.deepEqual(r.active, ['claude'])
+  assert.deepEqual(r.active.sort(), ['claude', 'pi'])
   assert.equal(r.canRun, true)
 })
 
 test('excludes undetected members', () => {
-  const r = resolveActiveMembers(DEFAULT_COUNCIL_CONFIG_ENABLED(), { claude: true, codex: false })
+  const r = resolveActiveMembers(DEFAULT_COUNCIL_CONFIG_ENABLED(), { pi: false, claude: true, codex: false })
   assert.deepEqual(r.active, ['claude'])
 })
 
-test('refuses when no consultant is available (only PI)', () => {
-  const r = resolveActiveMembers(DEFAULT_COUNCIL_CONFIG_ENABLED(), { claude: false, codex: false })
+test('refuses with fewer than two members available', () => {
+  const r = resolveActiveMembers(DEFAULT_COUNCIL_CONFIG_ENABLED(), { pi: true, claude: false, codex: false })
   assert.equal(r.canRun, false)
-  assert.ok((r.reason ?? '').toLowerCase().includes('at least one'))
+  assert.ok((r.reason ?? '').toLowerCase().includes('at least'))
 })
 
 test('refuses when feature disabled', () => {
@@ -90,7 +90,7 @@ test('hasQuorum false when none contributed', () => {
 
 // helper: an enabled copy of the default config
 function DEFAULT_COUNCIL_CONFIG_ENABLED(): CouncilConfig {
-  return { ...DEFAULT_COUNCIL_CONFIG, enabled: true, members: { claude: true, codex: true } }
+  return { ...DEFAULT_COUNCIL_CONFIG, enabled: true, members: { pi: true, claude: true, codex: true } }
 }
 
 import {
@@ -100,6 +100,7 @@ import {
   buildConsultantCommand,
   parseClaudeStreamLine,
   parseCodexStreamLine,
+  parsePiStreamLine,
   clampTimeoutSeconds,
   MIN_TIMEOUT_SECONDS,
   MAX_TIMEOUT_SECONDS,
@@ -226,4 +227,36 @@ test('parseCodexStreamLine ignores non-item events and bad JSON', () => {
   assert.deepEqual(parseCodexStreamLine(JSON.stringify({ type: 'turn.started' })), {})
   assert.deepEqual(parseCodexStreamLine('not json'), {})
   assert.deepEqual(parseCodexStreamLine(''), {})
+})
+
+test('pi command runs read-only json mode with the prompt', () => {
+  const pi = buildConsultantCommand('pi', '/usr/bin/pi', 'PROMPT')
+  assert.equal(pi.file, '/usr/bin/pi')
+  assert.ok(pi.args.includes('-p'))
+  assert.ok(pi.args.includes('--mode'))
+  assert.ok(pi.args.includes('json'))
+  assert.ok(pi.args.includes('--exclude-tools'))
+  assert.ok(pi.args.includes('PROMPT'))
+})
+
+test('parsePiStreamLine extracts assistant text as plan', () => {
+  const line = JSON.stringify({
+    type: 'message_update',
+    assistantMessageEvent: { type: 'text_delta', contentIndex: 1, delta: 'Plan part' },
+  })
+  assert.deepEqual(parsePiStreamLine(line), { plan: 'Plan part' })
+})
+
+test('parsePiStreamLine returns thinking as live-only display', () => {
+  const line = JSON.stringify({
+    type: 'message_update',
+    assistantMessageEvent: { type: 'thinking_delta', delta: 'pondering' },
+  })
+  assert.deepEqual(parsePiStreamLine(line), { display: 'pondering' })
+})
+
+test('parsePiStreamLine ignores non-update events and bad JSON', () => {
+  assert.deepEqual(parsePiStreamLine(JSON.stringify({ type: 'turn_start' })), {})
+  assert.deepEqual(parsePiStreamLine('not json'), {})
+  assert.deepEqual(parsePiStreamLine(''), {})
 })

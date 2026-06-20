@@ -570,7 +570,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
     set({ councilRun: { phase: 'detecting', request, results: [] } })
 
     const detectResult = await window.piDesktop.council.detect()
-    const detected = { claude: false, codex: false } as Record<CouncilAgentId, boolean>
+    const detected = { pi: false, claude: false, codex: false } as Record<CouncilAgentId, boolean>
     for (const a of detectResult.agents) detected[a.id] = a.found
 
     const resolution = resolveActiveMembers(config, detected)

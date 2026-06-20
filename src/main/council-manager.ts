@@ -7,6 +7,7 @@ import {
   buildConsultantCommand,
   parseClaudeStreamLine,
   parseCodexStreamLine,
+  parsePiStreamLine,
 } from '../shared/council-config'
 import { detectAgents } from './agent-detection'
 
@@ -128,13 +129,16 @@ export const defaultSpawnConsultant: SpawnConsultant = (id, prompt, cwd, timeout
         }
         if (typeof final === 'string') claudeFinal = final
       } else {
-        const { plan, display } = parseCodexStreamLine(line)
+        // PI streams thinking as token deltas (append raw); Codex emits whole
+        // reasoning items (separate with a newline).
+        const isPi = id === 'pi'
+        const { plan, display } = isPi ? parsePiStreamLine(line) : parseCodexStreamLine(line)
         if (typeof plan === 'string') {
           planText += plan
           onChunk?.(plan)
         } else if (typeof display === 'string') {
           // Reasoning/activity: show live but keep it out of the final plan.
-          onChunk?.(display + '\n')
+          onChunk?.(isPi ? display : display + '\n')
         }
       }
     }

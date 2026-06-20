@@ -36,22 +36,24 @@ Changed files use readable status badges:
 
 ## Multi-Agent Council Planning
 
-PI can consult other installed coding agents (Claude, Codex) to produce one agreed plan *before* PI implements it. The consultants only plan — PI is the only agent that edits files.
+PI, Claude, and Codex each produce an initial plan, share and converge, and PI presents the agreed consensus plan *before* anything is built. All members plan read-only; PI is the only agent that edits files.
 
 This is **off by default**. Enable it in **Settings → "Multi-Agent Council Planning"**. A confirmation dialog warns that it increases token/credit usage, because each request runs multiple agents.
 
-**Member detection.** The app auto-detects the `claude` and `codex` CLIs cross-platform; only detected agents can be enabled, via per-agent checkboxes. At least one consultant besides PI must be available, or a run is refused.
+**Members.** PI, Claude, and Codex. The app auto-detects each CLI cross-platform; only detected agents can be enabled, via per-agent checkboxes. At least two members must be available, or a run is refused. PI always merges the plans into the final consensus, even when not checked as a planner.
 
-**Read-only consultants.** Consultants run in read-only mode — they produce plans but never modify files. Only PI implements the result.
+**Read-only planning.** Every member plans read-only (Claude `--permission-mode plan`, Codex `--sandbox read-only`, PI with write tools excluded) — they produce plans but never modify files. Only PI implements the approved result.
+
+**Live output.** Each member streams its plan live in its own card during the consulting phase, with an elapsed timer.
 
 **Consensus modes:**
 
-- **Arbiter merge** (default) — fast. PI synthesizes the consultants' plans into one plan.
-- **One debate round** — slower (~2x cost). Consultants revise their plans after seeing each other's, then PI merges.
+- **One debate round** (default) — each member sees the others' plans and revises once, then PI merges. You watch them converge.
+- **Arbiter merge** — faster/cheaper. PI synthesizes the initial plans directly with no debate round.
 
-**Per-member timeout** (10–600s) bounds each consultant. A consultant that times out or errors is dropped, and the run proceeds as long as at least one plan was produced.
+**Per-member timeout** (10–600s, default 240s) bounds each member. A member that times out or errors is dropped, and the run proceeds as long as at least one plan was produced.
 
-**To use it:** with the feature enabled, type your request and click **Plan with Council** in the composer. Review each consultant's plan and PI's merged consensus plan, then click **Implement this** to have PI build it.
+**To use it:** with the feature enabled, type your request and click **Plan with Council** in the composer. Review each member's plan and PI's merged consensus plan, then click **Implement this** to have PI build it.
 
 ## Getting started
 

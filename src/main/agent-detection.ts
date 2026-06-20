@@ -6,8 +6,9 @@ import { COUNCIL_AGENT_IDS } from '../shared/council-config'
 
 const IS_WINDOWS = process.platform === 'win32'
 
-/** Base executable name per consultant agent. */
+/** Base executable name per council agent. */
 export const AGENT_BINARIES: Record<CouncilAgentId, string> = {
+  pi: 'pi',
   claude: 'claude',
   codex: 'codex',
 }

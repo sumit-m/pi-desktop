@@ -30,7 +30,8 @@ export function SettingsPanel(): React.JSX.Element {
   const [saved, setSaved] = useState(false)
 
   const [showCouncilWarning, setShowCouncilWarning] = useState(false)
-  const [detectedAgents, setDetectedAgents] = useState<Record<'claude' | 'codex', boolean>>({
+  const [detectedAgents, setDetectedAgents] = useState<Record<'pi' | 'claude' | 'codex', boolean>>({
+    pi: false,
     claude: false,
     codex: false,
   })
@@ -43,7 +44,7 @@ export function SettingsPanel(): React.JSX.Element {
     let cancelled = false
     void window.piDesktop.council.detect().then((result) => {
       if (cancelled) return
-      const next: Record<'claude' | 'codex', boolean> = { claude: false, codex: false }
+      const next: Record<'pi' | 'claude' | 'codex', boolean> = { pi: false, claude: false, codex: false }
       for (const agent of result.agents) {
         next[agent.id] = agent.found
       }
@@ -276,9 +277,9 @@ export function SettingsPanel(): React.JSX.Element {
             <>
               <SettingsRow label="Members" description="Which agents participate in council planning">
                 <div className="flex flex-col gap-2">
-                  {(['claude', 'codex'] as const).map((id) => {
+                  {(['pi', 'claude', 'codex'] as const).map((id) => {
                     const detected = detectedAgents[id]
-                    const label = id === 'claude' ? 'Claude' : 'Codex'
+                    const label = id === 'pi' ? 'PI' : id === 'claude' ? 'Claude' : 'Codex'
                     return (
                       <label
                         key={id}
