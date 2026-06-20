@@ -79,7 +79,16 @@ export async function runConsultants(
 export const defaultSpawnConsultant: SpawnConsultant = (id, prompt, cwd, timeoutMs) =>
   new Promise<SpawnOutcome>((resolve) => {
     const { file, args } = buildConsultantCommand(id, resolveExecutable(id), prompt)
-    const child = spawn(file, args, { cwd, shell: IS_WINDOWS, windowsHide: true })
+    // stdin is closed ('ignore'): consultant CLIs take the prompt as an
+    // argument, but if stdin is left open as an empty pipe they block waiting
+    // for input (Claude warns "no stdin data received"; Codex reads stdin and
+    // hangs until the timeout). Closing it makes them use the prompt arg.
+    const child = spawn(file, args, {
+      cwd,
+      shell: IS_WINDOWS,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
     const outDecoder = new StringDecoder('utf8')
     const errDecoder = new StringDecoder('utf8')
     let stdout = ''
