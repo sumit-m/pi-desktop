@@ -1167,6 +1167,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
     try {
       await window.piDesktop.workspace.rename(workspaceId, name)
       await get().loadWorkspaces()
+      await get().refreshSessionList()
     } catch {
       // Silent failure
     }

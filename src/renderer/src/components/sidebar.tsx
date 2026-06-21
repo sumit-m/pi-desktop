@@ -22,6 +22,7 @@ import {
 import { useState } from 'react'
 import { StatusPopover } from './status-popover'
 import { useContextMenu, buildSessionContextMenu } from './context-menu'
+import { getSessionRowLabels } from './sidebar-session-labels'
 import type { SessionListItem } from '../../../shared/ipc-contracts'
 
 export function Sidebar(): React.JSX.Element {
@@ -81,28 +82,32 @@ export function Sidebar(): React.JSX.Element {
     )
   }
 
-  const renderSessionRow = (session: SessionListItem): React.JSX.Element => (
-    <button
-      key={session.path}
-      onClick={() => openSession(session)}
-      onContextMenu={(e) => handleSessionRightClick(e, session)}
-      title="Click to open · right-click for actions"
-      className={clsx(
-        'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors',
-        sessionState?.sessionFile === session.path
-          ? 'bg-neutral-800 text-neutral-200'
-          : 'text-neutral-400 hover:bg-neutral-800/50 hover:text-neutral-300'
-      )}
-    >
-      <Clock size={12} className="shrink-0" />
-      <div className="min-w-0 flex-1">
-        <div className="truncate">{session.name || session.sessionId.slice(0, 12)}</div>
-        {session.projectPath !== activeWorkspace?.path && session.projectName && (
-          <div className="text-[10px] text-neutral-600 truncate">{session.projectName}</div>
+  const renderSessionRow = (session: SessionListItem): React.JSX.Element => {
+    const labels = getSessionRowLabels(session)
+
+    return (
+      <button
+        key={session.path}
+        onClick={() => openSession(session)}
+        onContextMenu={(e) => handleSessionRightClick(e, session)}
+        title="Click to open · right-click for actions"
+        className={clsx(
+          'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors',
+          sessionState?.sessionFile === session.path
+            ? 'bg-neutral-800 text-neutral-200'
+            : 'text-neutral-400 hover:bg-neutral-800/50 hover:text-neutral-300'
         )}
-      </div>
-    </button>
-  )
+      >
+        <Clock size={12} className="shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate">{labels.title}</div>
+          {labels.subtitle && (
+            <div className="text-[10px] text-neutral-600 truncate">{labels.subtitle}</div>
+          )}
+        </div>
+      </button>
+    )
+  }
 
   return (
     <aside className="flex w-64 flex-col border-r border-neutral-800 bg-neutral-950">
