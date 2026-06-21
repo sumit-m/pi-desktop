@@ -126,6 +126,11 @@ export function CustomModelsEditor(): React.JSX.Element {
       <p className="text-xs text-neutral-500">
         Custom providers and models in <code>~/.pi/agent/models.json</code>. Applied when Pi restarts.
       </p>
+      <p className="text-xs text-neutral-600">
+        Heads-up: auto-imported models (e.g. Ollama) come in without the{' '}
+        <span className="text-neutral-400">reasoning</span> flag, so thinking stays off. If a model
+        supports thinking, tick <span className="text-neutral-400">reasoning</span> below and restart Pi.
+      </p>
 
       {rows.map((row, pi) => (
         <div key={pi} className="rounded-md border border-neutral-800 p-3">
