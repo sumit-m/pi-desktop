@@ -1341,9 +1341,14 @@ async function runPiCli(
     })
     return { success: true, output: stdout + stderr }
   } catch (err) {
+    // execFile rejections carry the child's stdout/stderr alongside the
+    // message; surface all of it so the CLI's actual error reaches the user
+    // instead of a bare "Command failed".
+    const e = err as { stdout?: string; stderr?: string; message?: string }
+    const output = [e.stdout, e.stderr, e.message].filter(Boolean).join('\n').trim()
     return {
       success: false,
-      output: err instanceof Error ? err.message : String(err),
+      output: output || 'Command failed',
     }
   }
 }
