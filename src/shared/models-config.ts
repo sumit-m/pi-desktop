@@ -5,6 +5,13 @@ export interface CustomModelCost {
   cacheWrite: number
 }
 
+export interface ModelCompat {
+  supportsReasoningEffort?: boolean
+  supportsDeveloperRole?: boolean
+  supportsUsageInStreaming?: boolean
+  [key: string]: unknown
+}
+
 export interface CustomModel {
   id: string
   name?: string
@@ -23,6 +30,7 @@ export interface ProviderConfig {
   api?: string
   apiKey?: string
   models?: CustomModel[]
+  compat?: ModelCompat
   // Preserve headers, authHeader, modelOverrides, compat, ...
   [key: string]: unknown
 }
@@ -85,5 +93,35 @@ export function mergeModelsConfig(original: ModelsConfig, edited: ModelsConfig):
     })
     result.providers[key] = { ...origProv, ...prov, models: mergedModels }
   }
-  return result
+  return normalizeModelsConfigForPi(result)
+}
+
+export function normalizeModelsConfigForPi(config: ModelsConfig): ModelsConfig {
+  const providers: ModelsConfig['providers'] = {}
+  let changed = false
+
+  for (const [key, provider] of Object.entries(config.providers ?? {})) {
+    if (shouldEnableOllamaCloudReasoningEffort(provider)) {
+      providers[key] = {
+        ...provider,
+        compat: {
+          ...(provider.compat ?? {}),
+          supportsReasoningEffort: true,
+        },
+      }
+      changed = true
+    } else {
+      providers[key] = provider
+    }
+  }
+
+  return changed ? { ...config, providers } : config
+}
+
+function shouldEnableOllamaCloudReasoningEffort(provider: ProviderConfig): boolean {
+  const baseUrl = provider.baseUrl?.replace(/\/+$/, '')
+  if (baseUrl !== 'https://ollama.com' && baseUrl !== 'https://ollama.com/v1') return false
+  if (provider.api !== 'openai-completions') return false
+  if (provider.compat?.supportsReasoningEffort === true) return false
+  return (provider.models ?? []).some((model) => model.reasoning === true)
 }

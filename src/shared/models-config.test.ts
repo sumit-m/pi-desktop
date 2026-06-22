@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import {
   validateModelsConfig,
   mergeModelsConfig,
+  normalizeModelsConfigForPi,
   type ModelsConfig,
 } from './models-config'
 
@@ -68,4 +69,30 @@ test('merge adds new and drops removed providers/models', () => {
   const merged = mergeModelsConfig(original, edited)
   assert.deepEqual(Object.keys(merged.providers).sort(), ['fresh', 'keep'])
   assert.deepEqual(merged.providers.keep.models!.map((m) => m.id), ['a'])
+})
+
+test('normalizes Ollama Cloud reasoning effort support for thinking models', () => {
+  const normalized = normalizeModelsConfigForPi({
+    providers: {
+      'ollama-cloud': {
+        baseUrl: 'https://ollama.com/v1',
+        api: 'openai-completions',
+        compat: {
+          supportsDeveloperRole: false,
+          supportsReasoningEffort: false,
+          supportsUsageInStreaming: true,
+        },
+        models: [
+          {
+            id: 'glm-5.2:cloud',
+            reasoning: true,
+          },
+        ],
+      },
+    },
+  })
+
+  assert.equal(normalized.providers['ollama-cloud'].compat?.supportsReasoningEffort, true)
+  assert.equal(normalized.providers['ollama-cloud'].compat?.supportsDeveloperRole, false)
+  assert.equal(normalized.providers['ollama-cloud'].compat?.supportsUsageInStreaming, true)
 })
