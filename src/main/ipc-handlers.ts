@@ -12,7 +12,6 @@ import type {
   AppSettings,
   PermissionMode,
   SessionDeleteResult,
-  CatalogPackage,
   NoteInput,
   NoteUpdate,
   NoteScope,
@@ -28,6 +27,7 @@ import type { CouncilAgentId, ConsensusMode } from '../shared/council-config'
 import { detectAgents } from './agent-detection'
 import { readAttachment } from './attachment-reader'
 import { runConsultants, defaultSpawnConsultant } from './council-manager'
+import { fetchPackageCatalog } from './package-catalog'
 import type { SessionLineageRecord } from '../shared/session-lineage'
 import { readdir, stat, readFile, writeFile, mkdir, access, unlink } from 'fs/promises'
 import { basename, join } from 'path'
@@ -685,11 +685,8 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
     return updatePackage(isString(packageSpec) ? packageSpec : undefined, cwd)
   })
 
-  ipcMain.handle(IPC_CHANNELS.PACKAGE_CATALOG_FETCH, async (_event, query?: unknown, page?: unknown) => {
-    return fetchPackageCatalog(
-      isString(query) ? query : undefined,
-      typeof page === 'number' ? page : 0
-    )
+  ipcMain.handle(IPC_CHANNELS.PACKAGE_CATALOG_FETCH, async (_event, query?: unknown) => {
+    return fetchPackageCatalog(isString(query) ? query : undefined)
   })
 
   // ─── Skills ─────────────────────────────────────────────────────────────
@@ -1363,84 +1360,6 @@ async function removePackage(spec: string, cwd: string): Promise<{ success: bool
 
 async function updatePackage(spec: string | undefined, cwd: string): Promise<{ success: boolean; output: string }> {
   return runPiCli(spec ? ['update', spec] : ['update'], cwd, 120_000)
-}
-
-// ─── Package Catalog ─────────────────────────────────────────────────────────
-
-async function fetchPackageCatalog(query?: string, page = 0): Promise<CatalogPackage[]> {
-  try {
-    // Server returns 50 items per page; page param is 1-based on the server.
-    const url = `https://pi.dev/packages?page=${page + 1}`
-    const response = await fetch(url)
-    const html = await response.text()
-
-    const packages: CatalogPackage[] = []
-    const articleRegex = /<article[^>]*data-package-card="true"[^>]*>[\s\S]*?<\/article>/g
-    let articleMatch
-
-    while ((articleMatch = articleRegex.exec(html)) !== null) {
-      const article = articleMatch[0]
-
-      const nameMatch = article.match(/data-package-name="([^"]+)"/)
-      if (!nameMatch) continue
-      const name = nameMatch[1]
-
-      const downloadsRawMatch = article.match(/data-package-downloads="([^"]+)"/)
-      const dateMatch = article.match(/data-package-date="([^"]+)"/)
-
-      const descMatch = article.match(/<p class="packages-desc">([^<]+)<\/p>/)
-      const description = descMatch ? descMatch[1].trim() : ''
-
-      // packages-meta holds 3 spans: author, downloads/mo display, time-ago
-      const metaMatch = article.match(/<div class="packages-meta">([\s\S]*?)<\/div>/)
-      const metaSpans = metaMatch
-        ? [...metaMatch[1].matchAll(/<span>([^<]*)<\/span>/g)].map((m) => m[1])
-        : []
-      const author = metaSpans[0] ?? ''
-      const downloadsDisplay = metaSpans[1] ?? ''
-
-      const typeMatch = article.match(/data-type="([^"]+)"/)
-      const type = typeMatch ? typeMatch[1] : 'package'
-
-      const npmMatch = article.match(/href="(https:\/\/www\.npmjs\.com\/package\/[^"]+)"/)
-      const npmUrl = npmMatch ? npmMatch[1] : null
-
-      // Repo link is a github.com URL that is not a /issues/ link
-      const githubMatches = [...article.matchAll(/href="(https:\/\/github\.com\/[^"]+)"/g)]
-      const repoUrl = githubMatches.map((m) => m[1]).find((u) => !u.includes('/issues/')) ?? null
-
-      const downloads = downloadsRawMatch ? parseInt(downloadsRawMatch[1], 10) : 0
-      const updatedAt = dateMatch ? new Date(parseInt(dateMatch[1], 10)).toISOString() : ''
-
-      packages.push({
-        name,
-        description,
-        author,
-        type,
-        downloads,
-        downloadsDisplay,
-        updatedAt,
-        npmUrl,
-        repoUrl,
-        installCommand: `npm:${name}`,
-      })
-    }
-
-    // Search is client-side — the server returns fixed results regardless of query.
-    if (query && query.trim()) {
-      const q = query.trim().toLowerCase()
-      return packages.filter(
-        (pkg) =>
-          pkg.name.toLowerCase().includes(q) ||
-          pkg.description.toLowerCase().includes(q) ||
-          pkg.author.toLowerCase().includes(q)
-      )
-    }
-
-    return packages
-  } catch {
-    return []
-  }
 }
 
 // ─── Session Lineage Reader ──────────────────────────────────────────────────

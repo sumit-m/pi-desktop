@@ -118,7 +118,7 @@ interface PiDesktopAPI {
     install(spec: string): Promise<{ success: boolean; output: string }>
     remove(spec: string): Promise<{ success: boolean; output: string }>
     update(spec?: string): Promise<{ success: boolean; output: string }>
-    fetchCatalog(query?: string, page?: number): Promise<CatalogPackage[]>
+    fetchCatalog(query?: string): Promise<CatalogPackage[]>
   }
 
   // Models config (read/write ~/.pi/agent/models.json)
@@ -288,7 +288,7 @@ const api: PiDesktopAPI = {
     install: (spec) => ipcRenderer.invoke(IPC_CHANNELS.PACKAGE_INSTALL, spec),
     remove: (spec) => ipcRenderer.invoke(IPC_CHANNELS.PACKAGE_REMOVE, spec),
     update: (spec) => ipcRenderer.invoke(IPC_CHANNELS.PACKAGE_UPDATE, spec),
-    fetchCatalog: (query, page) => ipcRenderer.invoke(IPC_CHANNELS.PACKAGE_CATALOG_FETCH, query, page),
+    fetchCatalog: (query) => ipcRenderer.invoke(IPC_CHANNELS.PACKAGE_CATALOG_FETCH, query),
   },
 
   models: {
