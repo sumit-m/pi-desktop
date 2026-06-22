@@ -101,27 +101,48 @@ export function normalizeModelsConfigForPi(config: ModelsConfig): ModelsConfig {
   let changed = false
 
   for (const [key, provider] of Object.entries(config.providers ?? {})) {
+    let nextProvider = provider
+
     if (shouldEnableOllamaCloudReasoningEffort(provider)) {
-      providers[key] = {
-        ...provider,
+      nextProvider = {
+        ...nextProvider,
         compat: {
-          ...(provider.compat ?? {}),
+          ...(nextProvider.compat ?? {}),
           supportsReasoningEffort: true,
         },
       }
       changed = true
-    } else {
-      providers[key] = provider
     }
+
+    providers[key] = nextProvider
   }
 
   return changed ? { ...config, providers } : config
 }
 
-function shouldEnableOllamaCloudReasoningEffort(provider: ProviderConfig): boolean {
+function isOllamaCloudProvider(provider: ProviderConfig): boolean {
   const baseUrl = provider.baseUrl?.replace(/\/+$/, '')
-  if (baseUrl !== 'https://ollama.com' && baseUrl !== 'https://ollama.com/v1') return false
-  if (provider.api !== 'openai-completions') return false
+  return (baseUrl === 'https://ollama.com' || baseUrl === 'https://ollama.com/v1') && provider.api === 'openai-completions'
+}
+
+function shouldEnableOllamaCloudReasoningEffort(provider: ProviderConfig): boolean {
+  if (!isOllamaCloudProvider(provider)) return false
   if (provider.compat?.supportsReasoningEffort === true) return false
   return (provider.models ?? []).some((model) => model.reasoning === true)
+}
+
+const TEXT_INPUT = 'text'
+const IMAGE_INPUT = 'image'
+
+/**
+ * Toggle image (vision) support in a model's `input` modalities while always
+ * keeping text. Returns a new array; never mutates the input.
+ */
+export function withImageInput(input: string[] | undefined, enabled: boolean): string[] {
+  const base = input && input.length > 0 ? input : [TEXT_INPUT]
+  const withText = base.includes(TEXT_INPUT) ? base : [TEXT_INPUT, ...base]
+  if (enabled) {
+    return withText.includes(IMAGE_INPUT) ? [...withText] : [...withText, IMAGE_INPUT]
+  }
+  return withText.filter((modality) => modality !== IMAGE_INPUT)
 }

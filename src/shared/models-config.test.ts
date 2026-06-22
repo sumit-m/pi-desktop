@@ -4,6 +4,7 @@ import {
   validateModelsConfig,
   mergeModelsConfig,
   normalizeModelsConfigForPi,
+  withImageInput,
   type ModelsConfig,
 } from './models-config'
 
@@ -95,4 +96,29 @@ test('normalizes Ollama Cloud reasoning effort support for thinking models', () 
   assert.equal(normalized.providers['ollama-cloud'].compat?.supportsReasoningEffort, true)
   assert.equal(normalized.providers['ollama-cloud'].compat?.supportsDeveloperRole, false)
   assert.equal(normalized.providers['ollama-cloud'].compat?.supportsUsageInStreaming, true)
+})
+
+test('withImageInput enables image while keeping text', () => {
+  assert.deepEqual(withImageInput(['text'], true), ['text', 'image'])
+})
+
+test('withImageInput defaults missing input to text before enabling image', () => {
+  assert.deepEqual(withImageInput(undefined, true), ['text', 'image'])
+})
+
+test('withImageInput is idempotent when image already present', () => {
+  assert.deepEqual(withImageInput(['text', 'image'], true), ['text', 'image'])
+})
+
+test('withImageInput removes image but keeps text when disabled', () => {
+  assert.deepEqual(withImageInput(['text', 'image'], false), ['text'])
+})
+
+test('withImageInput keeps text when disabling on a text-only model', () => {
+  assert.deepEqual(withImageInput(['text'], false), ['text'])
+})
+
+test('withImageInput adds missing text for an image-only input', () => {
+  assert.deepEqual(withImageInput(['image'], true), ['text', 'image'])
+  assert.deepEqual(withImageInput(['image'], false), ['text'])
 })
