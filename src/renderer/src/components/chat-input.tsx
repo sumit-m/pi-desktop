@@ -59,17 +59,16 @@ export function ChatInput(): React.JSX.Element {
       // Text attachments are inlined into the prompt; image attachments are
       // sent as Pi image blocks so the model actually sees them.
       const textAttachments = attachments.filter((a) => a.kind === 'text')
-      const images = attachments
-        .filter((a): a is Extract<Attachment, { kind: 'image' }> => a.kind === 'image')
-        .map((a) => a.image)
-      const displayAttachments = attachments
-        .filter((a): a is Extract<Attachment, { kind: 'image' }> => a.kind === 'image')
-        .map((a) => ({
-          kind: 'image' as const,
-          name: a.name,
-          mimeType: a.image.mimeType,
-          data: a.image.data,
-        }))
+      const imageAttachments = attachments.filter(
+        (a): a is Extract<Attachment, { kind: 'image' }> => a.kind === 'image'
+      )
+      const images = imageAttachments.map((a) => a.image)
+      const displayAttachments = imageAttachments.map((a) => ({
+        kind: 'image' as const,
+        name: a.name,
+        mimeType: a.image.mimeType,
+        data: a.image.data,
+      }))
 
       let fullMessage = message
       if (textAttachments.length > 0) {
