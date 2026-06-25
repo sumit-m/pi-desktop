@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useAppStore } from '../store'
 import { formatGitStatus } from './review-rail'
+import { ActivityHeatmap } from './activity-heatmap'
 import type { GitFileStatus, SessionListItem } from '../../../shared/ipc-contracts'
 
 const MAX_RECENT_WORKSPACES = 6
@@ -190,6 +191,8 @@ export function HomeScreen(): React.JSX.Element {
           <p className="mt-1 text-sm text-neutral-500">Open a workspace or pick up where you left off.</p>
           {version && <p className="mt-2 text-xs text-neutral-600">v{version}</p>}
         </div>
+
+        <ActivityHeatmap />
 
         <div className="grid gap-6 md:grid-cols-2">
           {/* Actions */}
