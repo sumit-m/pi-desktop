@@ -7,6 +7,7 @@ import { TerminalService } from './terminal-service'
 import { NotesManager } from './notes-manager'
 import { getGuiDataPath } from './app-data-paths'
 import { getSessionsRoot } from './pi-paths'
+import { activityHeatmapReader } from './activity-heatmap'
 import type {
   PiStartOptions,
   PiRpcEvent,
@@ -21,6 +22,7 @@ import type {
   ModelsReadResult,
   CouncilRunResult,
   CouncilDetectResult,
+  ActivityHeatmapResult,
 } from '../shared/ipc-contracts'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 import { DEFAULT_COUNCIL_CONFIG, COUNCIL_AGENT_IDS, clampTimeoutSeconds } from '../shared/council-config'
@@ -999,6 +1001,10 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
 
   ipcMain.handle(IPC_CHANNELS.SYSTEM_GET_VERSION, async () => {
     return app.getVersion()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.ACTIVITY_GET_HEATMAP, async (): Promise<ActivityHeatmapResult> => {
+    return activityHeatmapReader.compute()
   })
 
   ipcMain.handle(IPC_CHANNELS.UPDATE_CHECK, async (): Promise<UpdateCheckResult> => {

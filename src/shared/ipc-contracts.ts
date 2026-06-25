@@ -67,6 +67,9 @@ export const IPC_CHANNELS = {
   SYSTEM_GET_VERSION: 'system:get-version',
   UPDATE_CHECK: 'update:check',
 
+  // Activity
+  ACTIVITY_GET_HEATMAP: 'activity:get-heatmap',
+
   // Workspaces
   WORKSPACE_LIST: 'workspace:list',
   WORKSPACE_CREATE: 'workspace:create',
