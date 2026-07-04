@@ -12,6 +12,7 @@ import {
   sessionDirName,
   desanitizeSessionDir,
   projectNameFromPath,
+  pathsEqual,
 } from './session-paths'
 import { activityHeatmapReader } from './activity-heatmap'
 import type {
@@ -1178,7 +1179,7 @@ async function collectSessionFiles(
           if (relativeToRoot) {
             // Try to match against known workspace paths
             const workspaces = wm.getWorkspaces()
-            const matched = workspaces.find((ws) => sanitizePath(ws.path) === relativeToRoot)
+            const matched = workspaces.find((ws) => pathsEqual(sanitizePath(ws.path), relativeToRoot))
 
             if (matched) {
               projectPath = matched.path

@@ -5,6 +5,7 @@ import {
   sessionDirName,
   desanitizeSessionDir,
   projectNameFromPath,
+  pathsEqual,
 } from './session-paths'
 
 test('sanitizePath encodes POSIX paths like Pi', () => {
@@ -65,4 +66,20 @@ test('projectNameFromPath returns the basename regardless of separator', () => {
   assert.equal(projectNameFromPath('C:\\Users\\UPN\\documents\\workday'), 'workday')
   assert.equal(projectNameFromPath('/home/alice/app'), 'app')
   assert.equal(projectNameFromPath('/C/Users/UPN/documents/workday'), 'workday')
+})
+
+test('pathsEqual ignores case when case-insensitive (Windows)', () => {
+  assert.equal(
+    pathsEqual('C:\\Users\\UPN\\Documents\\workday', 'C:\\Users\\UPN\\documents\\workday', true),
+    true
+  )
+  // Also works for encoded session-dir names.
+  assert.equal(pathsEqual('--C--Users-UPN-Documents-workday--', '--C--Users-UPN-documents-workday--', true), true)
+  assert.equal(pathsEqual('C:\\a', 'C:\\b', true), false)
+})
+
+test('pathsEqual is exact when case-sensitive (Linux/macOS)', () => {
+  // Regression guard: must NOT change behavior on case-sensitive systems.
+  assert.equal(pathsEqual('/home/alice/App', '/home/alice/app', false), false)
+  assert.equal(pathsEqual('/home/alice/app', '/home/alice/app', false), true)
 })
