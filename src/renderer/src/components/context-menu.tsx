@@ -14,6 +14,7 @@ import {
   NotebookPen,
 } from 'lucide-react'
 import type { SessionListItem } from '../../../shared/ipc-contracts'
+import { getSessionTitle } from '../utils/session-title'
 
 interface ContextMenuItem {
   id: string
@@ -352,7 +353,7 @@ export function buildSessionContextMenu(
   isArchived: boolean,
   actions: SessionContextMenuActions
 ): ContextMenuItem[] {
-  const displayName = session.name || session.sessionId.slice(0, 12)
+  const displayName = getSessionTitle(session.name, session.sessionId)
   return [
     {
       id: 'session-open',
