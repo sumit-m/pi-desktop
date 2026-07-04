@@ -7,6 +7,12 @@ import { TerminalService } from './terminal-service'
 import { NotesManager } from './notes-manager'
 import { getGuiDataPath } from './app-data-paths'
 import { getSessionsRoot } from './pi-paths'
+import {
+  sanitizePath,
+  sessionDirName,
+  desanitizeSessionDir,
+  projectNameFromPath,
+} from './session-paths'
 import { activityHeatmapReader } from './activity-heatmap'
 import type {
   PiStartOptions,
@@ -1147,32 +1153,6 @@ function createListAllSessions(wm: WorkspaceManager) {
   }
 }
 
-/**
- * Convert a sanitized session directory name back to a real path.
- * Pi sanitizes paths by replacing / with - and wrapping in --.
- * e.g., --home-alice-- → /home/alice
- * e.g., --home-alice-Projects-my-app-- → /home/alice/Projects/my/app
- *
- * NOTE: This is lossy — hyphens in the original path become indistinguishable
- * from path separators. We use the workspace list to resolve actual paths.
- */
-function desanitizeSessionDir(dirName: string): string {
-  // Only process Pi-sanitized directories (start and end with --)
-  if (!dirName.startsWith('--') || !dirName.endsWith('--')) {
-    return dirName
-  }
-
-  // Strip wrapping dashes
-  const inner = dirName.slice(2, -2)
-
-  // Split on dash to get path segments
-  const segments = inner.split('-')
-
-  // Try to match against known workspace paths
-  // This is lossy, so we return the best guess
-  return '/' + segments.join('/')
-}
-
 async function collectSessionFiles(
   dir: string,
   entries: SessionEntry[],
@@ -1189,26 +1169,24 @@ async function collectSessionFiles(
         try {
           const fileStat = await stat(fullPath)
 
-          // Determine project path from the directory structure
-          const relativeToRoot = dir.replace(sessionsRoot, '').replace(/^\//, '')
+          // Determine project path from the directory structure. Normalized so
+          // Windows session dirs (backslash-separated) compare correctly.
+          const relativeToRoot = sessionDirName(dir, sessionsRoot)
           let projectPath = ''
           let projectName = 'Unknown'
 
           if (relativeToRoot) {
             // Try to match against known workspace paths
             const workspaces = wm.getWorkspaces()
-            const matched = workspaces.find((ws) => {
-              const sanitized = sanitizePath(ws.path)
-              return sanitized === relativeToRoot
-            })
+            const matched = workspaces.find((ws) => sanitizePath(ws.path) === relativeToRoot)
 
             if (matched) {
               projectPath = matched.path
               projectName = matched.name
             } else {
-              // Fallback: use desanitize (lossy)
+              // Fallback: desanitize (lossy) and derive a clean basename.
               projectPath = desanitizeSessionDir(relativeToRoot)
-              projectName = projectPath.split('/').pop() ?? projectPath
+              projectName = projectNameFromPath(projectPath)
             }
           }
 
@@ -1229,14 +1207,6 @@ async function collectSessionFiles(
   } catch {
     // Directory doesn't exist or isn't readable
   }
-}
-
-/**
- * Sanitize a path the same way Pi does for session directory names.
- */
-function sanitizePath(path: string): string {
-  // Pi replaces / with - and wraps in --
-  return '--' + path.replace(/^\//, '').replace(/\//g, '-') + '--'
 }
 
 // ─── Package Management ──────────────────────────────────────────────────────
