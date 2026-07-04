@@ -33,16 +33,30 @@ export function sessionDirName(dir: string, sessionsRoot: string): string {
 }
 
 /**
- * Best-effort (lossy) reversal of `sanitizePath`, for display only.
+ * Best-effort (lossy) reversal of `sanitizePath`.
  * Returns the directory name unchanged if it isn't a Pi-sanitized name.
+ *
+ * Reconstructs a Windows path when the name carries the drive-letter
+ * signature ("C:\" encodes to "C--", i.e. a single-letter segment followed by
+ * an empty one), otherwise a POSIX path. Keeping decoded paths native means
+ * they display correctly and stay valid when reused (e.g. as a workspace path).
  */
 export function desanitizeSessionDir(dirName: string): string {
   if (!dirName.startsWith('--') || !dirName.endsWith('--')) {
     return dirName
   }
   const inner = dirName.slice(2, -2)
-  // filter(Boolean) collapses the empty segment left by the Windows "C:\" -> "C--".
-  const segments = inner.split('-').filter(Boolean)
+  const rawSegments = inner.split('-')
+
+  // Windows: a leading "<letter>--" came from "<letter>:\".
+  if (rawSegments.length >= 2 && /^[A-Za-z]$/.test(rawSegments[0]) && rawSegments[1] === '') {
+    const drive = rawSegments[0].toUpperCase()
+    const rest = rawSegments.slice(2).filter(Boolean)
+    return rest.length ? `${drive}:\\${rest.join('\\')}` : `${drive}:\\`
+  }
+
+  // POSIX: drop empty segments and rejoin with '/'.
+  const segments = rawSegments.filter(Boolean)
   return '/' + segments.join('/')
 }
 

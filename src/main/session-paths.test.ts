@@ -43,12 +43,18 @@ test('desanitizeSessionDir reverses POSIX names', () => {
   assert.equal(desanitizeSessionDir('--home-alice--'), '/home/alice')
 })
 
-test('desanitizeSessionDir yields a clean path for Windows names', () => {
-  // Must not return the raw "--C--...--" slug.
+test('desanitizeSessionDir rebuilds a native Windows path (drive signature)', () => {
+  // Regression: must produce "C:\..." — not "/C/..." — so the decoded path
+  // stays valid when reused as a workspace path.
+  assert.equal(desanitizeSessionDir('--C--Users-UPN--'), 'C:\\Users\\UPN')
   assert.equal(
     desanitizeSessionDir('--C--Users-UPN-documents-workday--'),
-    '/C/Users/UPN/documents/workday'
+    'C:\\Users\\UPN\\documents\\workday'
   )
+})
+
+test('desanitizeSessionDir handles a bare Windows drive root', () => {
+  assert.equal(desanitizeSessionDir('--C----'), 'C:\\')
 })
 
 test('desanitizeSessionDir passes through non-sanitized input', () => {
