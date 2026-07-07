@@ -109,6 +109,10 @@ interface AppState {
 
   // UI
   currentView: 'home' | 'chat' | 'settings' | 'sessions' | 'timeline' | 'packages' | 'diff' | 'notes' | 'skills'
+  // Bumped to request the chat scroll jump to the bottom (used when resuming a
+  // session/workspace from Home). In-app session switches leave it untouched so
+  // the chat restores each session's remembered scroll position instead.
+  chatScrollBottomNonce: number
   // Chat side panel: which secondary view (file tree or diff) is open in
   // the chat workspace. Lifted into the store so it survives navigating
   // away from chat (e.g. into Settings) and back.
@@ -239,6 +243,7 @@ interface AppActions {
 
   // UI
   setCurrentView: (view: AppState['currentView']) => void
+  requestChatScrollToBottom: () => void
   setChatSidePanel: (panel: AppState['chatSidePanel']) => void
   toggleSidebar: () => void
   toggleTerminal: () => void
@@ -386,6 +391,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   // Default to the Home/launcher view; useInitialize switches to 'chat' when
   // the openToHomeOnLaunch setting is off (legacy boot-into-chat behavior).
   currentView: 'home',
+  chatScrollBottomNonce: 0,
   chatSidePanel: null,
   sidebarOpen: true,
   terminalOpen: false,
@@ -884,6 +890,8 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   // ─── UI ───────────────────────────────────────────────────────────────
 
   setCurrentView: (view) => set({ currentView: view }),
+  requestChatScrollToBottom: () =>
+    set((state) => ({ chatScrollBottomNonce: state.chatScrollBottomNonce + 1 })),
   setChatSidePanel: (panel) => set({ chatSidePanel: panel }),
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
@@ -1190,6 +1198,12 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
       await get().refreshSessionStats()
       await get().refreshSessionList()
       await get().startPi()
+      // Load the resumed session's history into the chat. Unlike selecting a
+      // session (which goes through reloadActiveSession), the workspace path
+      // never fetched messages, so the recent session opened with an empty chat.
+      if (get().piStatus === 'running') {
+        await get().reloadActiveSession()
+      }
     } catch (err) {
       get().addMessage({
         id: generateId(),

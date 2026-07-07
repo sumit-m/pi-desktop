@@ -114,7 +114,6 @@ export function useInitialize(): void {
   const startPi = useAppStore((state) => state.startPi)
   const loadSettings = useAppStore((state) => state.loadSettings)
   const loadWorkspaces = useAppStore((state) => state.loadWorkspaces)
-  const refreshSessionState = useAppStore((state) => state.refreshSessionState)
   const refreshSessionStats = useAppStore((state) => state.refreshSessionStats)
   const refreshSessionList = useAppStore((state) => state.refreshSessionList)
 
@@ -143,16 +142,17 @@ export function useInitialize(): void {
         return
       }
 
-      // Legacy: boot into Chat and resume the last session.
+      // Legacy: boot into Chat and resume the last session. reloadActiveSession
+      // pulls the resumed session's message history (refreshSessionState alone
+      // only loads metadata, leaving the chat empty).
       useAppStore.getState().setCurrentView('chat')
       await startPi()
-      await refreshSessionState()
+      await useAppStore.getState().reloadActiveSession()
       await refreshSessionStats()
-      await refreshSessionList()
     }
 
     initialize()
-  }, [startPi, loadSettings, loadWorkspaces, refreshSessionState, refreshSessionStats, refreshSessionList])
+  }, [startPi, loadSettings, loadWorkspaces, refreshSessionStats, refreshSessionList])
 }
 
 /**

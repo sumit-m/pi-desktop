@@ -68,7 +68,7 @@ export const IPC_CHANNELS = {
   UPDATE_CHECK: 'update:check',
 
   // Activity
-  ACTIVITY_GET_HEATMAP: 'activity:get-heatmap',
+  ACTIVITY_GET_STATS: 'activity:get-stats',
 
   // Workspaces
   WORKSPACE_LIST: 'workspace:list',
@@ -440,15 +440,45 @@ export interface SessionListItem {
   projectName: string
 }
 
+// Used by the heatmap grid helper (buildWeeks / intensityLevel).
 export interface ActivityDay {
   date: string // local calendar day, YYYY-MM-DD
-  count: number // number of `type === 'message'` records on that day
+  count: number // activity count on that day
 }
 
-export interface ActivityHeatmapResult {
-  days: ActivityDay[] // ascending by date, length === WINDOW_DAYS
-  total: number // sum of all counts in the window
-  maxCount: number // highest single-day count in the window
+// ─── Activity stats (persisted, survives session deletion) ────────────────────
+
+export interface ActivityStatsDay {
+  date: string // local calendar day, YYYY-MM-DD
+  messages: number // all `type === 'message'` records that day
+  tokens: number // assistant input + output tokens that day (all models)
+  tokensByModel: Record<string, number> // model id -> input + output that day
+}
+
+export interface ActivityModelUsage {
+  model: string // stable model id (e.g. "claude-opus-4-8", "ornith-1.0-35b@q6_k")
+  name: string | null // latest display name from models.json; null → fall back to id
+  input: number
+  output: number
+}
+
+export interface ActivityRangeStats {
+  sessions: number // distinct sessions with activity in the range
+  messages: number
+  totalTokens: number // input + output across all models
+  activeDays: number
+  currentStreak: number // consecutive active days ending today (capped by range)
+  longestStreak: number
+  peakHour: number | null // busiest local hour 0..23, or null if no activity
+  models: ActivityModelUsage[] // descending by input + output
+}
+
+// Range keys are trailing-day counts: 365 ("1y"), 180 ("6mo"), 90 ("3mo"), 30, 7.
+export type ActivityRangeKey = '365' | '180' | '90' | '30' | '7'
+
+export interface ActivityStatsResult {
+  days: ActivityStatsDay[] // ascending, length === WINDOW_DAYS, zero-filled
+  ranges: Record<ActivityRangeKey, ActivityRangeStats>
 }
 
 export interface AutoTagSessionRef {
