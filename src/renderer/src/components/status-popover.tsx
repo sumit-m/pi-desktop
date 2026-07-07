@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { getSessionTitle } from '../utils/session-title'
 import { useAppStore } from '../store'
 import type { InstalledSkill } from '../../../shared/ipc-contracts'
 import { clsx } from 'clsx'
@@ -198,7 +199,7 @@ export function StatusPopover(): React.JSX.Element {
                 />
               )}
               {sessionState?.sessionId && (
-                <StatusRow label="Session" value={sessionState.sessionName || sessionState.sessionId.slice(0, 12)} />
+                <StatusRow label="Session" value={getSessionTitle(sessionState.sessionName, sessionState.sessionId)} />
               )}
             </StatusSection>
 

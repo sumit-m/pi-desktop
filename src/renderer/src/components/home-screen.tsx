@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { getSessionTitle } from '../utils/session-title'
 import { clsx } from 'clsx'
 import {
   SquareTerminal,
@@ -307,7 +308,7 @@ export function HomeScreen(): React.JSX.Element {
                       <Clock size={13} className="shrink-0 text-neutral-600" />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm text-neutral-300">
-                          {session.name || session.sessionId.slice(0, 12)}
+                          {getSessionTitle(session.name, session.sessionId)}
                         </div>
                         <div className="truncate text-[11px] text-neutral-600">{session.projectName}</div>
                       </div>
