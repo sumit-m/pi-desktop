@@ -47,6 +47,20 @@ import type {
 
 export type { DisplayAttachment, DisplayMessage } from './message-parsing'
 
+// ─── Preview Target ──────────────────────────────────────────────────────────
+
+/**
+ * What the side-panel preview is currently showing. `code` opens the editor
+ * (with a Source/Preview toggle for markdown & HTML); `image` opens the image
+ * viewer. `path` is absolute; `relativePath` (code only) drives the editor.
+ */
+export interface PreviewTarget {
+  kind: 'code' | 'image'
+  name: string
+  path: string
+  relativePath?: string
+}
+
 // ─── Council Run State ───────────────────────────────────────────────────────
 
 export type CouncilPhase = 'detecting' | 'consulting' | 'merging' | 'awaiting-approval' | 'refused'
@@ -109,12 +123,17 @@ interface AppState {
 
   // UI
   currentView: 'home' | 'chat' | 'settings' | 'sessions' | 'timeline' | 'packages' | 'diff' | 'notes' | 'skills'
+  // Bumped to request the chat scroll jump to the bottom (used when resuming a
+  // session/workspace from Home). In-app session switches leave it untouched so
+  // the chat restores each session's remembered scroll position instead.
+  chatScrollBottomNonce: number
   // Chat side panel: which secondary view (file tree or diff) is open in
   // the chat workspace. Lifted into the store so it survives navigating
   // away from chat (e.g. into Settings) and back.
   chatSidePanel: 'files' | 'diff' | null
   sidebarOpen: boolean
   terminalOpen: boolean
+  reviewOpen: boolean
   settings: AppSettings | null
   // Staged (unsaved) font-size values from the Settings sliders. When non-null
   // they take priority over the persisted setting and survive view switches, so
@@ -155,7 +174,12 @@ interface AppState {
   // Council run UI state (null when no council run is active)
   councilRun: CouncilRunState | null
 
-  // File preview
+  // File preview. A single target drives the side-panel preview; `kind` selects
+  // the viewer (code editor with Source/Preview toggle, or image viewer). `path`
+  // is absolute (readable via readAttachment / file:// even outside the
+  // workspace); `relativePath` drives the code editor's language + header.
+  previewTarget: PreviewTarget | null
+  // Legacy code-only file selection (still used by the chat file-link handler).
   selectedFile: { relativePath: string; path: string } | null
 
   // File search
@@ -239,9 +263,11 @@ interface AppActions {
 
   // UI
   setCurrentView: (view: AppState['currentView']) => void
+  requestChatScrollToBottom: () => void
   setChatSidePanel: (panel: AppState['chatSidePanel']) => void
   toggleSidebar: () => void
   toggleTerminal: () => void
+  toggleReview: () => void
   loadSettings: () => Promise<void>
   setFontSizePreview: (patch: {
     ui?: number | null
@@ -291,6 +317,7 @@ interface AppActions {
   saveCustomModels: (edited: ModelsConfig) => Promise<{ ok: boolean; errors?: string[] }>
 
   // File preview
+  setPreviewTarget: (target: PreviewTarget | null) => void
   setSelectedFile: (relativePath: string | null, path: string | null) => void
 
   // File search
@@ -386,9 +413,11 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   // Default to the Home/launcher view; useInitialize switches to 'chat' when
   // the openToHomeOnLaunch setting is off (legacy boot-into-chat behavior).
   currentView: 'home',
+  chatScrollBottomNonce: 0,
   chatSidePanel: null,
   sidebarOpen: true,
   terminalOpen: false,
+  reviewOpen: false,
   settings: null,
   uiFontSizePreview: null,
   terminalFontSizePreview: null,
@@ -415,6 +444,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   customModelsError: null,
   councilRun: null,
 
+  previewTarget: null,
   selectedFile: null,
 
   fileSearchOpen: false,
@@ -884,11 +914,15 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   // ─── UI ───────────────────────────────────────────────────────────────
 
   setCurrentView: (view) => set({ currentView: view }),
+  requestChatScrollToBottom: () =>
+    set((state) => ({ chatScrollBottomNonce: state.chatScrollBottomNonce + 1 })),
   setChatSidePanel: (panel) => set({ chatSidePanel: panel }),
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
 
   toggleTerminal: () => set((state) => ({ terminalOpen: !state.terminalOpen })),
+
+  toggleReview: () => set((state) => ({ reviewOpen: !state.reviewOpen })),
 
   loadSettings: async () => {
     try {
@@ -1341,6 +1375,10 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
     if (!result.success) return { ok: false, errors: [result.error ?? 'Write failed'] }
     await get().loadCustomModels()
     return { ok: true }
+  },
+
+  setPreviewTarget: (target) => {
+    set({ previewTarget: target })
   },
 
   setSelectedFile: (relativePath, path) => {

@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useAppStore } from '../store'
 import type { FileTreeNode, GitFileStatus, FileSearchResult } from '../../../shared/ipc-contracts'
 import { CodeEditor } from './code-editor'
+import { MarkdownRenderer } from './markdown-renderer'
+import { isImagePath } from './chat-file-link'
 import { clsx } from 'clsx'
 import {
   FolderOpen,
@@ -16,7 +18,22 @@ import {
   Loader2,
   Save,
   RotateCcw,
+  Eye,
+  Code2,
 } from 'lucide-react'
+
+// `<webview>` (enabled via webviewTag) isn't a typed JSX intrinsic; cast the tag
+// to a component so TS accepts the props we use. It renders the HTML preview in
+// an isolated guest process so its JavaScript runs without touching the app CSP.
+const Webview = 'webview' as unknown as React.FC<
+  React.HTMLAttributes<HTMLElement> & { src: string; partition?: string }
+>
+
+function toFileUrl(absolutePath: string): string {
+  let p = absolutePath.replace(/\\/g, '/')
+  if (!p.startsWith('/')) p = '/' + p // Windows "C:/…" -> "/C:/…"
+  return encodeURI('file://' + p)
+}
 
 // ─── File Tree ───────────────────────────────────────────────────────────────
 
@@ -90,8 +107,14 @@ export function FileTree(): React.JSX.Element {
 
   const handleFileClick = useCallback((path: string, relativePath: string) => {
     setSelectedFile(relativePath)
-    // Store the selected file for preview
-    useAppStore.getState().setSelectedFile(relativePath, path)
+    // Store the selected file for preview (images route to the image viewer).
+    const name = relativePath.split(/[\\/]/).pop() ?? relativePath
+    useAppStore.getState().setPreviewTarget({
+      kind: isImagePath(name) ? 'image' : 'code',
+      name,
+      path,
+      relativePath,
+    })
   }, [])
 
   if (loading) {
@@ -293,7 +316,12 @@ export function FileSearch({ isOpen, onClose }: FileSearchProps): React.JSX.Elem
   }, [query, contentMode])
 
   const handleSelect = (result: FileSearchResult) => {
-    useAppStore.getState().setSelectedFile(result.relativePath, result.path)
+    useAppStore.getState().setPreviewTarget({
+      kind: isImagePath(result.name) ? 'image' : 'code',
+      name: result.name,
+      path: result.path,
+      relativePath: result.relativePath,
+    })
     onClose()
   }
 
@@ -380,18 +408,28 @@ export function FileSearch({ isOpen, onClose }: FileSearchProps): React.JSX.Elem
 // ─── File Preview ────────────────────────────────────────────────────────────
 
 export function FilePreview(): React.JSX.Element | null {
-  const selectedFile = useAppStore((state) => state.selectedFile)
+  const target = useAppStore((state) => state.previewTarget)
+  const file = target?.kind === 'code' ? target : null
   const [content, setContent] = useState<string | null>(null)
   const [savedContent, setSavedContent] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [viewMode, setViewMode] = useState<'source' | 'preview'>('preview')
+  // Bumped after a save so the HTML <webview> remounts and reloads from disk.
+  const [reloadKey, setReloadKey] = useState(0)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDirty = content !== null && savedContent !== null && content !== savedContent
 
+  const displayPath = file?.relativePath ?? file?.name ?? ''
+  const isMarkdown = /\.(md|markdown|mdx)$/i.test(displayPath)
+  const isHtml = /\.(html?|htm)$/i.test(displayPath)
+  const canPreview = isMarkdown || isHtml
+  const path = file?.path ?? null
+
   useEffect(() => {
-    if (!selectedFile) {
+    if (!path) {
       setContent(null)
       setSavedContent(null)
       return
@@ -403,7 +441,7 @@ export function FilePreview(): React.JSX.Element | null {
       setLoading(true)
       setError(null)
       try {
-        const data = await window.piDesktop.files.read(selectedFile.path)
+        const data = await window.piDesktop.files.read(path)
         if (!cancelled) {
           setContent(data)
           setSavedContent(data)
@@ -422,7 +460,12 @@ export function FilePreview(): React.JSX.Element | null {
     return () => {
       cancelled = true
     }
-  }, [selectedFile])
+  }, [path])
+
+  // Default to the rendered preview for markdown/HTML, source otherwise.
+  useEffect(() => {
+    setViewMode(canPreview ? 'preview' : 'source')
+  }, [path, canPreview])
 
   // Cleanup pending debounce on unmount
   useEffect(() => {
@@ -439,18 +482,19 @@ export function FilePreview(): React.JSX.Element | null {
     }, 150)
   }, [])
 
-  if (!selectedFile) return null
+  if (!file || !path) return null
 
   const handleSave = async () => {
-    if (content === null || !selectedFile) return
+    if (content === null) return
 
     setSaving(true)
     setError(null)
     setSaveSuccess(false)
     try {
-      await window.piDesktop.files.write(selectedFile.path, content)
+      await window.piDesktop.files.write(path, content)
       setSavedContent(content)
       setSaveSuccess(true)
+      setReloadKey((k) => k + 1)
       setTimeout(() => setSaveSuccess(false), 2000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save file')
@@ -471,7 +515,7 @@ export function FilePreview(): React.JSX.Element | null {
       <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-2">
         <div className="flex items-center gap-2 min-w-0">
           <FileText size={14} className="shrink-0 text-neutral-500" />
-          <span className="text-xs text-neutral-300 truncate">{selectedFile.relativePath}</span>
+          <span className="text-xs text-neutral-300 truncate">{displayPath}</span>
           {saveSuccess ? (
             <span className="rounded bg-green-900/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-green-400">
               saved
@@ -483,6 +527,30 @@ export function FilePreview(): React.JSX.Element | null {
           ) : null}
         </div>
         <div className="flex items-center gap-1">
+          {canPreview && (
+            <div className="mr-1 flex items-center rounded bg-neutral-900 p-0.5">
+              <button
+                onClick={() => setViewMode('source')}
+                className={clsx(
+                  'rounded p-1 transition-colors',
+                  viewMode === 'source' ? 'bg-neutral-700 text-neutral-100' : 'text-neutral-500 hover:text-neutral-300'
+                )}
+                title="Source"
+              >
+                <Code2 size={12} />
+              </button>
+              <button
+                onClick={() => setViewMode('preview')}
+                className={clsx(
+                  'rounded p-1 transition-colors',
+                  viewMode === 'preview' ? 'bg-neutral-700 text-neutral-100' : 'text-neutral-500 hover:text-neutral-300'
+                )}
+                title="Preview"
+              >
+                <Eye size={12} />
+              </button>
+            </div>
+          )}
           <button
             onClick={handleRevert}
             disabled={!isDirty || saving}
@@ -500,7 +568,7 @@ export function FilePreview(): React.JSX.Element | null {
             <Save size={12} />
           </button>
           <button
-            onClick={() => useAppStore.getState().setSelectedFile(null, null)}
+            onClick={() => useAppStore.getState().setPreviewTarget(null)}
             className="rounded p-1 text-neutral-500 hover:text-neutral-300"
             title="Close editor"
           >
@@ -510,21 +578,33 @@ export function FilePreview(): React.JSX.Element | null {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex flex-1 flex-col overflow-auto">
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 size={20} className="animate-spin text-neutral-500" />
           </div>
         ) : error ? (
           <div className="p-4 text-xs text-red-400">{error}</div>
-        ) : content !== null ? (
+        ) : content === null ? null : viewMode === 'preview' && isMarkdown ? (
+          <div className="markdown-body text-sm p-4">
+            <MarkdownRenderer content={content} />
+          </div>
+        ) : viewMode === 'preview' && isHtml ? (
+          <Webview
+            key={reloadKey}
+            src={toFileUrl(path)}
+            partition="preview"
+            className="flex-1"
+            style={{ display: 'flex', width: '100%', height: '100%', border: 'none' }}
+          />
+        ) : (
           <CodeEditor
-            filePath={selectedFile.relativePath}
+            filePath={displayPath}
             value={content}
             readOnly={false}
             onChange={handleChange}
           />
-        ) : null}
+        )}
       </div>
     </div>
   )

@@ -108,7 +108,11 @@ export function App(): React.JSX.Element {
         <div className="flex min-w-0 flex-1 overflow-hidden">
           <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
             {currentView === 'home' && <HomeScreen />}
-            {currentView === 'chat' && <ChatPanel />}
+            {/* Kept mounted (just hidden) so the chat scroll position survives
+                navigating to another view and back. */}
+            <div className={currentView === 'chat' ? 'flex min-w-0 flex-1 flex-col overflow-hidden' : 'hidden'}>
+              <ChatPanel />
+            </div>
             {currentView === 'settings' && <SettingsPanel />}
             {currentView === 'sessions' && <SessionPanel />}
             {currentView === 'timeline' && <Timeline />}

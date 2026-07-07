@@ -113,6 +113,9 @@ export function Sidebar(): React.JSX.Element {
       }
     }
     switchSession(session.path)
+    // Bring the chat into view (may be on Settings/Notes/etc.). In-app switches
+    // keep their remembered scroll position, so no force-to-bottom here.
+    setCurrentView('chat')
   }
 
   const handleSessionRightClick = (e: React.MouseEvent, session: SessionListItem): void => {
@@ -194,7 +197,7 @@ export function Sidebar(): React.JSX.Element {
   }
 
   return (
-    <aside className="flex w-64 flex-col border-r border-neutral-800 bg-neutral-950">
+    <aside className="flex w-[calc(16rem_+_16px)] flex-col border-r border-neutral-800 bg-neutral-950">
       {/* Header */}
       <div className="flex h-12 items-center justify-between border-b border-neutral-800 px-3">
         <div className="flex items-center gap-2">

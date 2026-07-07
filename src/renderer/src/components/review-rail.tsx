@@ -9,7 +9,8 @@ interface ChangedFile {
   status: GitFileStatus
 }
 
-export function ReviewRail(): React.JSX.Element {
+export function ReviewRail(): React.JSX.Element | null {
+  const reviewOpen = useAppStore((state) => state.reviewOpen)
   const settings = useAppStore((state) => state.settings)
   const setPermissionMode = useAppStore((state) => state.setPermissionMode)
   const pendingSteering = useAppStore((state) => state.pendingSteering)
@@ -48,8 +49,10 @@ export function ReviewRail(): React.JSX.Element {
     }
   }, [activeWorkspace?.id, messages.length, isStreaming])
 
+  if (!reviewOpen) return null
+
   return (
-    <aside className="hidden w-80 shrink-0 flex-col border-l border-neutral-800 bg-neutral-950 xl:flex">
+    <aside className="flex w-80 shrink-0 flex-col border-l border-neutral-800 bg-neutral-950">
       <div className="border-b border-neutral-800 px-4 py-3">
         <div className="flex items-center gap-2">
           <ShieldCheck size={16} className="text-emerald-400" />
