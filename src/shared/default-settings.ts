@@ -10,7 +10,7 @@ import { DEFAULT_COUNCIL_CONFIG } from './council-config'
 export const DEFAULT_SETTINGS: AppSettings = {
   piExecutablePath: 'pi',
   defaultArgs: [],
-  theme: 'breeze-dark',
+  theme: 'breeze-claudius',
   defaultModel: null,
   defaultProvider: null,
   defaultCwd: null,
