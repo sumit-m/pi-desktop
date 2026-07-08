@@ -47,6 +47,20 @@ import type {
 
 export type { DisplayAttachment, DisplayMessage } from './message-parsing'
 
+// ─── Preview Target ──────────────────────────────────────────────────────────
+
+/**
+ * What the side-panel preview is currently showing. `code` opens the editor
+ * (with a Source/Preview toggle for markdown & HTML); `image` opens the image
+ * viewer. `path` is absolute; `relativePath` (code only) drives the editor.
+ */
+export interface PreviewTarget {
+  kind: 'code' | 'image'
+  name: string
+  path: string
+  relativePath?: string
+}
+
 // ─── Council Run State ───────────────────────────────────────────────────────
 
 export type CouncilPhase = 'detecting' | 'consulting' | 'merging' | 'awaiting-approval' | 'refused'
@@ -119,6 +133,7 @@ interface AppState {
   chatSidePanel: 'files' | 'diff' | null
   sidebarOpen: boolean
   terminalOpen: boolean
+  reviewOpen: boolean
   settings: AppSettings | null
   // Unsaved edits from the Settings panel (theme, piPath, permission mode,
   // toggles, font sizes). Overlaid on `settings` so the form reflects them on
@@ -157,7 +172,12 @@ interface AppState {
   // Council run UI state (null when no council run is active)
   councilRun: CouncilRunState | null
 
-  // File preview
+  // File preview. A single target drives the side-panel preview; `kind` selects
+  // the viewer (code editor with Source/Preview toggle, or image viewer). `path`
+  // is absolute (readable via readAttachment / file:// even outside the
+  // workspace); `relativePath` drives the code editor's language + header.
+  previewTarget: PreviewTarget | null
+  // Legacy code-only file selection (still used by the chat file-link handler).
   selectedFile: { relativePath: string; path: string } | null
 
   // File search
@@ -245,6 +265,7 @@ interface AppActions {
   setChatSidePanel: (panel: AppState['chatSidePanel']) => void
   toggleSidebar: () => void
   toggleTerminal: () => void
+  toggleReview: () => void
   loadSettings: () => Promise<void>
   setSettingsDraft: (patch: Partial<AppSettings>) => void
   clearSettingsDraft: () => void
@@ -290,6 +311,7 @@ interface AppActions {
   saveCustomModels: (edited: ModelsConfig) => Promise<{ ok: boolean; errors?: string[] }>
 
   // File preview
+  setPreviewTarget: (target: PreviewTarget | null) => void
   setSelectedFile: (relativePath: string | null, path: string | null) => void
 
   // File search
@@ -389,6 +411,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   chatSidePanel: null,
   sidebarOpen: true,
   terminalOpen: false,
+  reviewOpen: false,
   settings: null,
   settingsDraft: {},
   commands: [],
@@ -413,6 +436,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   customModelsError: null,
   councilRun: null,
 
+  previewTarget: null,
   selectedFile: null,
 
   fileSearchOpen: false,
@@ -890,6 +914,8 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
 
   toggleTerminal: () => set((state) => ({ terminalOpen: !state.terminalOpen })),
 
+  toggleReview: () => set((state) => ({ reviewOpen: !state.reviewOpen })),
+
   loadSettings: async () => {
     try {
       const settings = await window.piDesktop.settings.getAll()
@@ -1342,6 +1368,10 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
     if (!result.success) return { ok: false, errors: [result.error ?? 'Write failed'] }
     await get().loadCustomModels()
     return { ok: true }
+  },
+
+  setPreviewTarget: (target) => {
+    set({ previewTarget: target })
   },
 
   setSelectedFile: (relativePath, path) => {

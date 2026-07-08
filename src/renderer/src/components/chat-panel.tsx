@@ -4,15 +4,20 @@ import { CouncilPanels } from './council-panels'
 import { MessageBubble } from './message-bubble'
 import { StreamingBubble } from './streaming-bubble'
 import { FileTree, FileSearch, FilePreview } from './file-tree'
+import { ImageViewer } from './image-viewer'
 import { DiffViewer } from './diff-viewer'
 import { TerminalPanel } from './terminal'
-import { useAutoScroll } from '../hooks'
+import { useChatScroll } from '../hooks'
 import { useState, useCallback } from 'react'
 import { clsx } from 'clsx'
+import piLogo from '../assets/pi-logo.svg'
 import {
   FolderTree,
   GitCompare,
   Terminal,
+  ShieldCheck,
+  PanelLeft,
+  PanelLeftClose,
   X,
 } from 'lucide-react'
 
@@ -24,9 +29,11 @@ export function ChatPanel(): React.JSX.Element {
   const streamingToolCalls = useAppStore((state) => state.streamingToolCalls)
   const piStatus = useAppStore((state) => state.piStatus)
   const terminalOpen = useAppStore((state) => state.terminalOpen)
+  const reviewOpen = useAppStore((state) => state.reviewOpen)
+  const sidebarOpen = useAppStore((state) => state.sidebarOpen)
   const fileSearchOpen = useAppStore((state) => state.fileSearchOpen)
   const toggleFileSearch = useAppStore((state) => state.toggleFileSearch)
-  const selectedFile = useAppStore((state) => state.selectedFile)
+  const previewTarget = useAppStore((state) => state.previewTarget)
 
   // sidePanel lives in the store so it survives view switches (e.g. Settings
   // round-trip). Widths stay local — resetting them on remount is benign.
@@ -35,7 +42,8 @@ export function ChatPanel(): React.JSX.Element {
   const [sidePanelWidth, setSidePanelWidth] = useState(640)
   const [filePaneWidth, setFilePaneWidth] = useState(280)
 
-  const scrollRef = useAutoScroll([messages.length, streamingContent])
+  const currentView = useAppStore((state) => state.currentView)
+  const { scrollRef, onScroll } = useChatScroll(currentView === 'chat')
 
   const handleRetry = useCallback(async (messageId: string) => {
     // Read from the store so this callback stays referentially stable, keeping
@@ -48,12 +56,13 @@ export function ChatPanel(): React.JSX.Element {
   }, [])
 
   const activeWorkspace = useAppStore((state) => state.activeWorkspace)
-  const showSidePanel = sidePanel !== null || selectedFile !== null
+  const showSidePanel = sidePanel !== null || previewTarget !== null
   const showFileTree = sidePanel === 'files'
-  const showEditor = selectedFile !== null && sidePanel !== 'diff'
+  const showImage = previewTarget?.kind === 'image' && sidePanel !== 'diff'
+  const showEditor = previewTarget?.kind === 'code' && sidePanel !== 'diff'
   const showDiff = sidePanel === 'diff'
-  const showFileTreeOnly = showFileTree && !showEditor
-  const minSidePanelWidth = showFileTree && showEditor ? 600 : 360
+  const showFileTreeOnly = showFileTree && !showEditor && !showImage
+  const minSidePanelWidth = showFileTree && (showEditor || showImage) ? 600 : 360
   const effectiveSidePanelWidth = clamp(sidePanelWidth, minSidePanelWidth, 1280)
   const maxFilePaneWidth = Math.max(220, effectiveSidePanelWidth - 360)
   const effectiveFilePaneWidth = clamp(filePaneWidth, 220, maxFilePaneWidth)
@@ -63,10 +72,10 @@ export function ChatPanel(): React.JSX.Element {
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex flex-1 overflow-hidden">
         {/* Main chat area */}
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="chat-center flex flex-1 flex-col overflow-hidden">
           {/* Toolbar */}
           <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-1.5">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               {/* Workspace path — always visible */}
               {activeWorkspace && (
                 <div className="flex items-center gap-1.5 mr-2 px-2 py-0.5 rounded bg-neutral-800/60" title={activeWorkspace.path}>
@@ -76,6 +85,18 @@ export function ChatPanel(): React.JSX.Element {
                   </span>
                 </div>
               )}
+              <ToolbarButton
+                icon={sidebarOpen ? <PanelLeftClose size={14} /> : <PanelLeft size={14} />}
+                active={false}
+                onClick={() => useAppStore.getState().toggleSidebar()}
+                title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+              />
+              <ToolbarButton
+                icon={<ShieldCheck size={14} />}
+                active={reviewOpen}
+                onClick={() => useAppStore.getState().toggleReview()}
+                title="Review panel"
+              />
               <ToolbarButton
                 icon={<FolderTree size={14} />}
                 active={sidePanel === 'files'}
@@ -98,7 +119,7 @@ export function ChatPanel(): React.JSX.Element {
           </div>
 
           {/* Messages area */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto">
+          <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto">
             {messages.length === 0 && !isStreaming ? (
               <EmptyState piStatus={piStatus} />
             ) : (
@@ -145,7 +166,7 @@ export function ChatPanel(): React.JSX.Element {
                   <div className="flex min-w-0 shrink-0 flex-col overflow-hidden" style={{ width: effectiveFilePaneWidth }}>
                     <FileTree />
                   </div>
-                  {showEditor && (
+                  {(showEditor || showImage) && (
                     <ResizeHandle
                       onResize={(delta) => setFilePaneWidth((width) => clamp(width + delta, 220, maxFilePaneWidth))}
                     />
@@ -158,8 +179,20 @@ export function ChatPanel(): React.JSX.Element {
                 </div>
               )}
               {showEditor && (
-                <div className="flex min-w-[360px] flex-1 flex-col overflow-hidden border-l border-neutral-800">
+                <div
+                  className={clsx(
+                    'flex min-w-[360px] flex-1 flex-col overflow-hidden',
+                    // Divider only when the file tree is beside it; alone, the
+                    // outer panel's border-l is the left edge (avoids doubling).
+                    showFileTree && 'border-l border-neutral-800'
+                  )}
+                >
                   <FilePreview />
+                </div>
+              )}
+              {showImage && (
+                <div className="flex min-w-[360px] flex-1 flex-col overflow-hidden">
+                  <ImageViewer />
                 </div>
               )}
             </div>
@@ -214,7 +247,7 @@ function ResizeHandle({ onResize }: { onResize: (delta: number) => void }): Reac
       className="group flex w-2 shrink-0 cursor-col-resize items-stretch justify-center bg-neutral-950 transition-colors hover:bg-neutral-800"
       title="Drag to resize"
     >
-      <div className="w-px bg-neutral-700 transition-colors group-hover:bg-blue-400" />
+      <div className="w-px bg-transparent transition-colors group-hover:bg-blue-400" />
     </div>
   )
 }
@@ -238,7 +271,7 @@ function ToolbarButton({
     <button
       onClick={onClick}
       className={clsx(
-        'rounded p-1.5 transition-colors',
+        'rounded p-1 transition-colors',
         active
           ? 'bg-neutral-800 text-neutral-200'
           : 'text-neutral-500 hover:bg-neutral-800/50 hover:text-neutral-300'
@@ -254,11 +287,11 @@ function EmptyState({ piStatus }: { piStatus: string }): React.JSX.Element {
   return (
     <div className="flex h-full flex-col items-center justify-center px-4">
       <div className="text-center">
-        <div className="mb-4 text-4xl">⌘</div>
-        <h2 className="mb-2 text-lg font-medium text-neutral-200">
+        <img src={piLogo} alt="Pi Desktop" className="mx-auto mb-4 block h-16 w-16" />
+        <h2 className="mb-6 text-2xl font-semibold text-neutral-100">
           Pi Desktop
         </h2>
-        <p className="mb-6 max-w-md text-sm text-neutral-500">
+        <p className="mb-6 max-w-3xl text-balance text-sm text-neutral-500">
           {piStatus === 'running'
             ? 'Start a conversation with your coding agent. Ask it to build, debug, or explore your codebase.'
             : piStatus === 'starting'
