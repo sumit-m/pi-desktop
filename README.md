@@ -8,21 +8,23 @@ Still in alpha — expect rough edges.
 
 ## What it does
 
-- Streaming chat with thinking blocks and tool use
+- Streaming chat with thinking blocks, tool use, and rich rendering — bundled fonts + color emoji, inline SVG preview, collapsible tool-call results, clickable file links that open a preview pane
+- Home dashboard with usage stats — messages, tokens, active-day streaks, peak hour, per-model breakdown
 - [Multi-Agent Council Planning](#multi-agent-council-planning) — Pi, Claude, and Codex plan together and reach consensus before Pi builds (opt-in)
 - Command palette (`Ctrl/Cmd+K` or `/`) — run skills, prompt templates, and built-in commands
 - Skills browser, session fork/branch tree, and one-click context compaction
+- Session naming (read from Pi) with inline rename, and a themed in-app confirmation for delete
 - Custom models & providers editor (Settings) — edits `~/.pi/agent/models.json`
 - Multiple workspaces, each with its own Pi process and sessions
-- Review rail with permissions, approvals, changed files, and session status
-- File tree, code editor (CodeMirror 6 with syntax highlighting), diff viewer, file search
+- Review rail (toggleable) with permissions, approvals, changed files, and session status
+- File tree, code/image/HTML preview panes, code editor (CodeMirror 6 with syntax highlighting), diff viewer, file search
 - Terminal with ANSI colors
-- Package browser connected to pi.dev/packages
-- Session tags, model switching, themes (Dark, Light, Nord, Gruvbox)
+- Package browser connected to pi.dev/packages, with instant local search
+- Session tags, model switching, live-preview settings, themes (Dark, Light, System, Nord, Gruvbox, Breeze Dark, Breeze Light, Breeze Claudius)
 
 ## Review rail
 
-The right-side Review rail keeps safety and working-tree state visible while you chat with Pi.
+The right-side Review rail keeps safety and working-tree state visible while you chat with Pi. Toggle it from the chat toolbar (hidden by default, so it doesn't compete for space with file/image previews).
 
 Changed files use readable status badges:
 
@@ -203,7 +205,7 @@ If `npm install` completes but the app won't launch because Electron is missing 
 Replace `39.8.10` with the version in `node_modules/electron/package.json` if it differs.
 
 ```powershell
-$ver = "39.8.10"
+$ver = "43.0.0"
 $url = "https://github.com/electron/electron/releases/download/v$ver/electron-v$ver-win32-x64.zip"
 $zip = "$env:TEMP\electron-v$ver-win32-x64.zip"
 Invoke-WebRequest -Uri $url -OutFile $zip
