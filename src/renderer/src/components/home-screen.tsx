@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { getSessionTitle } from '../utils/session-title'
 import { clsx } from 'clsx'
 import {
-  SquareTerminal,
   FolderOpen,
   Plus,
   Clock,
@@ -12,8 +11,9 @@ import {
   Settings as SettingsIcon,
 } from 'lucide-react'
 import { useAppStore } from '../store'
+import piLogo from '../assets/pi-logo.svg'
 import { formatGitStatus } from './review-rail'
-import { ActivityHeatmap } from './activity-heatmap'
+import { StatsPanel } from './stats-panel'
 import type { GitFileStatus, SessionListItem } from '../../../shared/ipc-contracts'
 
 const MAX_RECENT_WORKSPACES = 6
@@ -39,14 +39,10 @@ export function HomeScreen(): React.JSX.Element {
   const createNewSession = useAppStore((s) => s.createNewSession)
   const startPi = useAppStore((s) => s.startPi)
   const setCurrentView = useAppStore((s) => s.setCurrentView)
+  const requestChatScrollToBottom = useAppStore((s) => s.requestChatScrollToBottom)
 
-  const [version, setVersion] = useState('')
   const [gitStatus, setGitStatus] = useState<Record<string, GitFileStatus>>({})
   const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    window.piDesktop.system.getVersion().then(setVersion).catch(() => setVersion(''))
-  }, [])
 
   // Git status for the active (most-recent) workspace — works without Pi.
   useEffect(() => {
@@ -76,7 +72,10 @@ export function HomeScreen(): React.JSX.Element {
 
   // Navigate to Chat unless Pi failed to start (then stay so the error shows).
   const goChatUnlessError = (): void => {
-    if (useAppStore.getState().piStatus !== 'error') setCurrentView('chat')
+    if (useAppStore.getState().piStatus !== 'error') {
+      requestChatScrollToBottom()
+      setCurrentView('chat')
+    }
   }
 
   const openWorkspace = async (workspaceId: string): Promise<void> => {
@@ -126,6 +125,7 @@ export function HomeScreen(): React.JSX.Element {
       else await startPi()
       if (useAppStore.getState().piStatus === 'error') return
       await switchSession(session.path)
+      requestChatScrollToBottom()
       setCurrentView('chat')
     } finally {
       setBusy(false)
@@ -142,6 +142,7 @@ export function HomeScreen(): React.JSX.Element {
       await switchWorkspace(activeWorkspace.id)
       if (useAppStore.getState().piStatus === 'error') return
       await createNewSession()
+      requestChatScrollToBottom()
       setCurrentView('chat')
     } finally {
       setBusy(false)
@@ -161,7 +162,7 @@ export function HomeScreen(): React.JSX.Element {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className={clsx('mx-auto max-w-4xl px-8 py-12', busy && 'pointer-events-none opacity-60')}>
+      <div className={clsx('mx-auto max-w-[952px] px-8 py-12', busy && 'pointer-events-none opacity-60')}>
         {/* Pi-not-found / start error */}
         {piStatus === 'error' && piError && (
           <div className="mb-6 flex items-start gap-3 rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-300">
@@ -184,16 +185,13 @@ export function HomeScreen(): React.JSX.Element {
         )}
 
         {/* Header */}
-        <div className="mb-10 flex flex-col items-center text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-neutral-800 text-blue-400">
-            <SquareTerminal size={34} />
-          </div>
+        <div className="mb-6 flex flex-col items-center text-center">
+          <img src={piLogo} alt="Pi Desktop" className="h-16 w-16" />
           <h1 className="mt-4 text-2xl font-semibold text-neutral-100">Pi Desktop</h1>
           <p className="mt-1 text-sm text-neutral-500">Open a workspace or pick up where you left off.</p>
-          {version && <p className="mt-2 text-xs text-neutral-600">v{version}</p>}
         </div>
 
-        <ActivityHeatmap />
+        <StatsPanel />
 
         <div className="grid gap-6 md:grid-cols-2">
           {/* Actions */}
@@ -203,7 +201,7 @@ export function HomeScreen(): React.JSX.Element {
               onClick={openFolder}
               className="flex w-full items-center gap-3 rounded-lg border border-neutral-700 bg-neutral-900 px-4 py-3 text-left transition-colors hover:border-neutral-600 hover:bg-neutral-800"
             >
-              <FolderOpen size={18} className="shrink-0 text-blue-400" />
+              <FolderOpen size={18} className="shrink-0 text-neutral-400" />
               <div className="min-w-0">
                 <div className="text-sm font-medium text-neutral-200">Open Folder</div>
                 <div className="text-xs text-neutral-500">Browse for a project to open as a workspace</div>

@@ -4,6 +4,7 @@ import { basename, join, resolve as resolvePath } from 'path'
 import { WorkspaceManager } from './workspace-manager'
 import { registerIpcHandlers } from './ipc-handlers'
 import { fetchAllCatalogPackages } from './package-catalog'
+import { activityStatsStore } from './activity-stats'
 import { configureGuiDataDir, getCanonicalUserDataDir, migrateLegacyGuiData } from './app-data-paths'
 
 // Env var honored on startup: if set, the named directory becomes the active
@@ -224,6 +225,10 @@ app.whenReady().then(async () => {
   // instant when first opened. Non-blocking; failures are ignored (offline etc).
   void fetchAllCatalogPackages().catch(() => {})
 
+  // Baseline scan of the persisted activity stats, so the store reflects reality
+  // even if the home screen is never opened this run. Non-blocking.
+  void activityStatsStore.refresh()
+
   // macOS: re-create window when dock icon clicked
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -241,6 +246,9 @@ app.on('window-all-closed', () => {
 
 // Cleanup on quit
 app.on('before-quit', () => {
+  // Synchronous incremental scan + write: captures every session touched this
+  // run before we exit (async I/O isn't guaranteed to finish during shutdown).
+  activityStatsStore.flushSync()
   workspaceManager?.stopAll()
 })
 
