@@ -47,6 +47,20 @@ import type {
 
 export type { DisplayAttachment, DisplayMessage } from './message-parsing'
 
+// ─── Preview Target ──────────────────────────────────────────────────────────
+
+/**
+ * What the side-panel preview is currently showing. `code` opens the editor
+ * (with a Source/Preview toggle for markdown & HTML); `image` opens the image
+ * viewer. `path` is absolute; `relativePath` (code only) drives the editor.
+ */
+export interface PreviewTarget {
+  kind: 'code' | 'image'
+  name: string
+  path: string
+  relativePath?: string
+}
+
 // ─── Council Run State ───────────────────────────────────────────────────────
 
 export type CouncilPhase = 'detecting' | 'consulting' | 'merging' | 'awaiting-approval' | 'refused'
@@ -99,7 +113,7 @@ interface AppState {
   streamingThinking: string
   streamingToolCalls: Map<
     string,
-    { name: string; args: string; isExecuting: boolean; startedAt?: number; durationMs?: number }
+    { name: string; args: string; result?: string; isExecuting: boolean; startedAt?: number; durationMs?: number }
   >
   isStreaming: boolean
 
@@ -109,20 +123,23 @@ interface AppState {
 
   // UI
   currentView: 'home' | 'chat' | 'settings' | 'sessions' | 'timeline' | 'packages' | 'diff' | 'notes' | 'skills'
+  // Bumped to request the chat scroll jump to the bottom (used when resuming a
+  // session/workspace from Home). In-app session switches leave it untouched so
+  // the chat restores each session's remembered scroll position instead.
+  chatScrollBottomNonce: number
   // Chat side panel: which secondary view (file tree or diff) is open in
   // the chat workspace. Lifted into the store so it survives navigating
   // away from chat (e.g. into Settings) and back.
   chatSidePanel: 'files' | 'diff' | null
   sidebarOpen: boolean
   terminalOpen: boolean
+  reviewOpen: boolean
   settings: AppSettings | null
-  // Staged (unsaved) font-size values from the Settings sliders. When non-null
-  // they take priority over the persisted setting and survive view switches, so
-  // the sliders reflect the staged value on reopen and terminal/editor pick it
-  // up on remount — all without touching (or persisting) `settings`.
-  uiFontSizePreview: number | null
-  terminalFontSizePreview: number | null
-  codeEditorFontSizePreview: number | null
+  // Unsaved edits from the Settings panel (theme, piPath, permission mode,
+  // toggles, font sizes). Overlaid on `settings` so the form reflects them on
+  // reopen and they survive view switches; the terminal/editor read their font
+  // sizes from here so unsaved changes apply on remount. Cleared on Save/Reset.
+  settingsDraft: Partial<AppSettings>
   commands: PiCommand[]
 
   // Extension UI
@@ -141,8 +158,8 @@ interface AppState {
   // Packages
   installedPackages: InstalledPackage[]
   catalogPackages: CatalogPackage[]
-  packageLoading: boolean
-  packageSearchQuery: string
+  packageLoading: boolean // install/remove operations (affects the Installed tab)
+  catalogLoading: boolean // catalog crawl (Catalog tab only)
   packageNotification: { type: 'success' | 'error'; message: string } | null
 
   // Skills
@@ -155,7 +172,12 @@ interface AppState {
   // Council run UI state (null when no council run is active)
   councilRun: CouncilRunState | null
 
-  // File preview
+  // File preview. A single target drives the side-panel preview; `kind` selects
+  // the viewer (code editor with Source/Preview toggle, or image viewer). `path`
+  // is absolute (readable via readAttachment / file:// even outside the
+  // workspace); `relativePath` drives the code editor's language + header.
+  previewTarget: PreviewTarget | null
+  // Legacy code-only file selection (still used by the chat file-link handler).
   selectedFile: { relativePath: string; path: string } | null
 
   // File search
@@ -239,15 +261,14 @@ interface AppActions {
 
   // UI
   setCurrentView: (view: AppState['currentView']) => void
+  requestChatScrollToBottom: () => void
   setChatSidePanel: (panel: AppState['chatSidePanel']) => void
   toggleSidebar: () => void
   toggleTerminal: () => void
+  toggleReview: () => void
   loadSettings: () => Promise<void>
-  setFontSizePreview: (patch: {
-    ui?: number | null
-    terminal?: number | null
-    editor?: number | null
-  }) => void
+  setSettingsDraft: (patch: Partial<AppSettings>) => void
+  clearSettingsDraft: () => void
   setPermissionMode: (mode: PermissionMode) => Promise<void>
   toggleSessionGroupCollapsed: (projectPath: string) => Promise<void>
   loadCommands: () => Promise<void>
@@ -279,8 +300,7 @@ interface AppActions {
   loadInstalledPackages: () => Promise<void>
   installPackage: (spec: string) => Promise<void>
   removePackage: (spec: string) => Promise<void>
-  searchCatalog: (query?: string) => Promise<void>
-  setPackageSearchQuery: (query: string) => void
+  loadCatalog: () => Promise<void>
   clearPackageNotification: () => void
 
   // Skills
@@ -291,6 +311,7 @@ interface AppActions {
   saveCustomModels: (edited: ModelsConfig) => Promise<{ ok: boolean; errors?: string[] }>
 
   // File preview
+  setPreviewTarget: (target: PreviewTarget | null) => void
   setSelectedFile: (relativePath: string | null, path: string | null) => void
 
   // File search
@@ -386,13 +407,13 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   // Default to the Home/launcher view; useInitialize switches to 'chat' when
   // the openToHomeOnLaunch setting is off (legacy boot-into-chat behavior).
   currentView: 'home',
+  chatScrollBottomNonce: 0,
   chatSidePanel: null,
   sidebarOpen: true,
   terminalOpen: false,
+  reviewOpen: false,
   settings: null,
-  uiFontSizePreview: null,
-  terminalFontSizePreview: null,
-  codeEditorFontSizePreview: null,
+  settingsDraft: {},
   commands: [],
 
   extensionUiRequest: null,
@@ -406,7 +427,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   installedPackages: [],
   catalogPackages: [],
   packageLoading: false,
-  packageSearchQuery: '',
+  catalogLoading: false,
   packageNotification: null,
 
   installedSkills: [],
@@ -415,6 +436,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   customModelsError: null,
   councilRun: null,
 
+  previewTarget: null,
   selectedFile: null,
 
   fileSearchOpen: false,
@@ -884,11 +906,15 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   // ─── UI ───────────────────────────────────────────────────────────────
 
   setCurrentView: (view) => set({ currentView: view }),
+  requestChatScrollToBottom: () =>
+    set((state) => ({ chatScrollBottomNonce: state.chatScrollBottomNonce + 1 })),
   setChatSidePanel: (panel) => set({ chatSidePanel: panel }),
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
 
   toggleTerminal: () => set((state) => ({ terminalOpen: !state.terminalOpen })),
+
+  toggleReview: () => set((state) => ({ reviewOpen: !state.reviewOpen })),
 
   loadSettings: async () => {
     try {
@@ -904,15 +930,10 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
     }
   },
 
-  setFontSizePreview: (patch) =>
-    set((state) => ({
-      uiFontSizePreview:
-        patch.ui !== undefined ? patch.ui : state.uiFontSizePreview,
-      terminalFontSizePreview:
-        patch.terminal !== undefined ? patch.terminal : state.terminalFontSizePreview,
-      codeEditorFontSizePreview:
-        patch.editor !== undefined ? patch.editor : state.codeEditorFontSizePreview,
-    })),
+  setSettingsDraft: (patch) =>
+    set((state) => ({ settingsDraft: { ...state.settingsDraft, ...patch } })),
+
+  clearSettingsDraft: () => set({ settingsDraft: {} }),
 
   setPermissionMode: async (mode) => {
     const updated = await window.piDesktop.settings.save({ permissionMode: mode })
@@ -959,7 +980,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
         break
 
       case 'message_end':
-        handleTurnComplete(set)
+        handleTurnComplete(set, (event as { message?: Record<string, unknown> }).message)
         get().addTimelineEvent({
           id: generateId(),
           type: 'assistant_message',
@@ -970,7 +991,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
         break
 
       case 'turn_end':
-        handleTurnComplete(set)
+        handleTurnComplete(set, (event as { message?: Record<string, unknown> }).message)
         break
 
       case 'agent_start':
@@ -1190,6 +1211,12 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
       await get().refreshSessionStats()
       await get().refreshSessionList()
       await get().startPi()
+      // Load the resumed session's history into the chat. Unlike selecting a
+      // session (which goes through reloadActiveSession), the workspace path
+      // never fetched messages, so the recent session opened with an empty chat.
+      if (get().piStatus === 'running') {
+        await get().reloadActiveSession()
+      }
     } catch (err) {
       get().addMessage({
         id: generateId(),
@@ -1292,19 +1319,19 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
     }
   },
 
-  searchCatalog: async (query) => {
-    set({ packageLoading: true })
+  // Load the full catalog once; the Catalog tab filters it locally on each
+  // keystroke (no per-keystroke IPC). catalogLoading gates only this one-time load.
+  loadCatalog: async () => {
+    set({ catalogLoading: true })
     try {
-      const packages = await window.piDesktop.packages.fetchCatalog(query)
+      const packages = await window.piDesktop.packages.fetchCatalog()
       set({ catalogPackages: packages })
     } catch {
       // Silent failure
     } finally {
-      set({ packageLoading: false })
+      set({ catalogLoading: false })
     }
   },
-
-  setPackageSearchQuery: (query) => set({ packageSearchQuery: query }),
 
   clearPackageNotification: () => set({ packageNotification: null }),
 
@@ -1341,6 +1368,10 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
     if (!result.success) return { ok: false, errors: [result.error ?? 'Write failed'] }
     await get().loadCustomModels()
     return { ok: true }
+  },
+
+  setPreviewTarget: (target) => {
+    set({ previewTarget: target })
   },
 
   setSelectedFile: (relativePath, path) => {
@@ -1658,14 +1689,16 @@ function handleMessageUpdate(
 }
 
 function handleTurnComplete(
-  set: ZustandSet
+  set: ZustandSet,
+  message?: Record<string, unknown>
 ): void {
   set((state) => {
     const newMessages = [...state.messages]
 
     // Commit streaming content as assistant message
     if (state.streamingContent || state.streamingThinking || state.streamingToolCalls.size > 0) {
-      const toolCalls = Array.from(state.streamingToolCalls.entries()).map(([id, tc]) => ({
+      const entries = Array.from(state.streamingToolCalls.entries())
+      const toolCalls = entries.map(([id, tc]) => ({
         id,
         name: tc.name,
         arguments: tc.args,
@@ -1673,6 +1706,12 @@ function handleTurnComplete(
         durationMs: tc.durationMs,
       }))
 
+      // Prefer the model/provider Pi records on this specific message (the
+      // authoritative source, robust to mid-turn model switches); fall back to
+      // the currently-selected model when the event omits them.
+      const activeModel = state.sessionState?.model
+      const model = typeof message?.model === 'string' ? message.model : activeModel?.id
+      const provider = typeof message?.provider === 'string' ? message.provider : activeModel?.provider
       newMessages.push({
         id: generateId(),
         role: 'assistant',
@@ -1680,7 +1719,22 @@ function handleTurnComplete(
         timestamp: Date.now(),
         thinking: state.streamingThinking || undefined,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        model,
+        provider,
       })
+
+      // Emit a standalone toolResult message per tool call so the live view
+      // matches what reloading from history produces (Pi persists tool output
+      // as separate toolResult messages, not folded into the assistant turn).
+      for (const [id, tc] of entries) {
+        if (!tc.result) continue
+        newMessages.push({
+          id: `${id}-result`,
+          role: 'toolResult',
+          content: tc.result,
+          timestamp: Date.now(),
+        })
+      }
     }
 
     return {
@@ -1702,6 +1756,7 @@ function handleToolStart(
       name: event.toolName,
       args: JSON.stringify(event.args),
       isExecuting: true,
+      startedAt: Date.now(),
     })
     return { streamingToolCalls: newMap }
   })
@@ -1720,9 +1775,11 @@ function handleToolUpdate(
     const newMap = new Map(state.streamingToolCalls)
     const existing = newMap.get(event.toolCallId)
     if (existing) {
+      // Accumulate partial output into `result`; keep `args` as the real
+      // arguments so the finalized tool-call badge shows the invocation.
       newMap.set(event.toolCallId, {
         ...existing,
-        args: text || existing.args,
+        result: text || existing.result,
       })
     }
     return { streamingToolCalls: newMap }
@@ -1745,7 +1802,8 @@ function handleToolEnd(
       newMap.set(event.toolCallId, {
         ...existing,
         isExecuting: false,
-        args: resultText || existing.args,
+        result: resultText || existing.result,
+        durationMs: existing.startedAt ? Date.now() - existing.startedAt : existing.durationMs,
       })
     }
     return { streamingToolCalls: newMap }

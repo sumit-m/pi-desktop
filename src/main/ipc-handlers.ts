@@ -15,7 +15,7 @@ import {
   pathsEqual,
 } from './session-paths'
 import { readSessionName } from './session-name'
-import { activityHeatmapReader } from './activity-heatmap'
+import { activityStatsStore } from './activity-stats'
 import type {
   PiStartOptions,
   PiRpcEvent,
@@ -30,10 +30,11 @@ import type {
   ModelsReadResult,
   CouncilRunResult,
   CouncilDetectResult,
-  ActivityHeatmapResult,
+  ActivityStatsResult,
 } from '../shared/ipc-contracts'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
-import { DEFAULT_COUNCIL_CONFIG, COUNCIL_AGENT_IDS, clampTimeoutSeconds } from '../shared/council-config'
+import { COUNCIL_AGENT_IDS, clampTimeoutSeconds } from '../shared/council-config'
+import { DEFAULT_SETTINGS } from '../shared/default-settings'
 import type { CouncilAgentId, ConsensusMode } from '../shared/council-config'
 import { detectAgents } from './agent-detection'
 import { readAttachment } from './attachment-reader'
@@ -528,6 +529,10 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
       throw new Error('sessionPath must point to a .jsonl session file')
     }
 
+    // Roll this session into the persisted stats store *before* removing the
+    // file, so its activity survives the deletion (see activity-stats.ts).
+    activityStatsStore.captureBeforeDelete(sessionPath)
+
     const result = await deleteSessionFile(sessionPath)
     if (result.ok) {
       const sessionId = sessionIdFromPath(sessionPath)
@@ -1011,8 +1016,8 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
     return app.getVersion()
   })
 
-  ipcMain.handle(IPC_CHANNELS.ACTIVITY_GET_HEATMAP, async (): Promise<ActivityHeatmapResult> => {
-    return activityHeatmapReader.compute()
+  ipcMain.handle(IPC_CHANNELS.ACTIVITY_GET_STATS, async (): Promise<ActivityStatsResult> => {
+    return activityStatsStore.computeStats()
   })
 
   ipcMain.handle(IPC_CHANNELS.UPDATE_CHECK, async (): Promise<UpdateCheckResult> => {
@@ -1524,25 +1529,6 @@ function parseSkillFrontmatter(content: string): { name: string; description: st
 // ─── App Settings Persistence ────────────────────────────────────────────────
 
 const SETTINGS_FILE_NAME = 'settings.json'
-
-const DEFAULT_SETTINGS: AppSettings = {
-  piExecutablePath: 'pi',
-  defaultArgs: [],
-  theme: 'dark',
-  defaultModel: null,
-  defaultProvider: null,
-  defaultCwd: null,
-  fontSize: 14,
-  terminalFontSize: 12,
-  codeEditorFontSize: 12,
-  showThinking: true,
-  autoScroll: true,
-  permissionMode: 'ask-edits',
-  resumeLastSession: true,
-  collapsedSessionGroups: [],
-  openToHomeOnLaunch: true,
-  council: DEFAULT_COUNCIL_CONFIG,
-}
 
 function getSettingsPath(): string {
   return getGuiDataPath(SETTINGS_FILE_NAME)

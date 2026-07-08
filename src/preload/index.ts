@@ -32,7 +32,7 @@ import type {
   AttachmentReadResult,
   OpenDialogOptions,
   PromptImage,
-  ActivityHeatmapResult,
+  ActivityStatsResult,
 } from '../shared/ipc-contracts'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 
@@ -186,9 +186,9 @@ interface PiDesktopAPI {
     getVersion(): Promise<string>
   }
 
-  // Activity heatmap
+  // Activity stats
   activity: {
-    getHeatmap(): Promise<ActivityHeatmapResult>
+    getStats(): Promise<ActivityStatsResult>
   }
 
   // Update check (GitHub releases)
@@ -361,7 +361,7 @@ const api: PiDesktopAPI = {
   },
 
   activity: {
-    getHeatmap: () => ipcRenderer.invoke(IPC_CHANNELS.ACTIVITY_GET_HEATMAP),
+    getStats: () => ipcRenderer.invoke(IPC_CHANNELS.ACTIVITY_GET_STATS),
   },
 
   updates: {

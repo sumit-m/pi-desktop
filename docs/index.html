@@ -10,13 +10,13 @@
   <meta property="og:site_name" content="Pi Desktop" />
   <meta property="og:title" content="Pi Desktop" />
   <meta property="og:description" content="A desktop GUI for the Pi coding agent. Open source. Alpha." />
-  <meta property="og:image" content="https://pi-desktop.com/screenshots/Pi_Home_Screenshot_20260618_090453.png" />
+  <meta property="og:image" content="https://pi-desktop.com/screenshots/pi_desktop_home.png" />
   <meta property="og:image:alt" content="Pi Desktop — Home launcher screen with recent workspaces and sessions" />
   <meta property="og:url" content="https://pi-desktop.com/" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Pi Desktop — Desktop GUI for the Pi coding agent" />
   <meta name="twitter:description" content="A free, open-source Electron app that puts a full GUI around the Pi coding agent. Linux, macOS, and Windows." />
-  <meta name="twitter:image" content="https://pi-desktop.com/screenshots/Pi_Home_Screenshot_20260618_090453.png" />
+  <meta name="twitter:image" content="https://pi-desktop.com/screenshots/pi_desktop_home.png" />
   <meta name="theme-color" content="#0d0d0d" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="apple-touch-icon" href="/icon-512.png" />
@@ -30,7 +30,7 @@
     "description": "A free, open-source Electron app that puts a full GUI around the Pi coding agent. Chat, manage files, run commands, and review changes — all in one window.",
     "url": "https://pi-desktop.com/",
     "downloadUrl": "https://github.com/FaqFirebase/pi-desktop/releases",
-    "softwareVersion": "0.0.4-alpha",
+    "softwareVersion": "0.0.9-alpha",
     "license": "https://www.apache.org/licenses/LICENSE-2.0",
     "author": { "@type": "Organization", "name": "Pi Desktop GUI Contributors" },
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
@@ -307,13 +307,15 @@
   <!-- SCREENSHOTS -->
   <section class="screenshots">
     <div class="screenshot-grid">
-      <img src="screenshots/Pi_Home_Screenshot_20260618_090453.png" alt="Pi Desktop — Home launcher screen" />
-      <img src="screenshots/Screenshot_20260521_215458.png" alt="Pi Desktop — main chat view" loading="lazy" />
-      <img src="screenshots/Screenshot_20260521_215613.png" alt="Pi Desktop — file tree and diff viewer" loading="lazy" />
-      <img src="screenshots/Screenshot_20260521_215706.png" alt="Pi Desktop — terminal" loading="lazy" />
-      <img src="screenshots/Screenshot_20260521_215737.png" alt="Pi Desktop — review rail" loading="lazy" />
-      <img src="screenshots/Screenshot_20260521_223908.png" alt="Pi Desktop — package browser" loading="lazy" />
-      <img src="screenshots/Screenshot_20260522_075508.png" alt="Pi Desktop — overview" loading="lazy" />
+      <img src="screenshots/pi_desktop_home.png" alt="Pi Desktop — Home launcher screen" />
+      <img src="screenshots/pi_desktop_chat.png" alt="Pi Desktop — main chat view" loading="lazy" />
+      <img src="screenshots/pi_desktop_chat2.png" alt="Pi Desktop — chat view with workspace switcher" loading="lazy" />
+      <img src="screenshots/pi_desktop_sessions.png" alt="Pi Desktop — sessions list" loading="lazy" />
+      <img src="screenshots/pi_desktop_timeline.png" alt="Pi Desktop — agent timeline and session tree" loading="lazy" />
+      <img src="screenshots/pi_desktop_packages.png" alt="Pi Desktop — packages and skills browser" loading="lazy" />
+      <img src="screenshots/pi_desktop_skills.png" alt="Pi Desktop — skills panel" loading="lazy" />
+      <img src="screenshots/pi_desktop_notes.png" alt="Pi Desktop — notes" loading="lazy" />
+      <img src="screenshots/pi_desktop_options_menu.png" alt="Pi Desktop — settings" loading="lazy" />
     </div>
   </section>
 
@@ -325,7 +327,7 @@
       <div class="feature-card">
         <div class="feature-icon">💬</div>
         <h3>Streaming chat</h3>
-        <p>Real-time streaming with thinking blocks and tool-use visibility. Watch Pi reason through problems step by step.</p>
+        <p>Real-time streaming with thinking blocks and tool-use visibility. Rich rendering — inline SVG preview, collapsible tool results, clickable file links, color emoji. Watch Pi reason through problems step by step.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🗂</div>
@@ -360,12 +362,22 @@
       <div class="feature-card">
         <div class="feature-icon">🎨</div>
         <h3>Themes</h3>
-        <p>Dark, Light, Nord, and Gruvbox. Switch themes from settings.</p>
+        <p>Dark, Light, System, Nord, Gruvbox, Breeze Dark, Breeze Light, and Breeze Claudius. Every setting live-previews before you save.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">⚡</div>
         <h3>Model switching</h3>
         <p>Cycle between models with Ctrl+P. Session tags keep your work organized.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🏷️</div>
+        <h3>Session naming</h3>
+        <p>Session names read straight from Pi, with inline rename right in the sidebar. Themed in-app confirmation for delete — no native dialogs stealing window focus.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3>Activity dashboard</h3>
+        <p>Home shows usage stats over 7 days to a year — messages, tokens, active-day streaks, peak hour, and per-model breakdown. Persists even if you delete the session.</p>
       </div>
     </div>
   </section>
@@ -387,8 +399,8 @@
       <div class="install-step">
         <div class="step-num">2</div>
         <div class="step-body">
-          <h4>Download and run the AppImage</h4>
-          <p>Grab the latest Linux AppImage from <a href="https://github.com/FaqFirebase/pi-desktop/releases">Releases</a>, make it executable, and run it:</p>
+          <h4>Download and run</h4>
+          <p>Grab the latest build for your platform from <a href="https://github.com/FaqFirebase/pi-desktop/releases">Releases</a> — Linux AppImage/deb/rpm, macOS DMG (Apple Silicon), or Windows installer/portable.</p>
           <p class="mt-8">
             <code>chmod +x Pi-Desktop-*.AppImage</code><br>
             <code>./Pi-Desktop-*.AppImage</code>
@@ -398,8 +410,9 @@
     </div>
 
     <p class="install-note">
-      macOS and Windows builds are coming soon. In the meantime you can
-      <a href="https://github.com/FaqFirebase/pi-desktop#build-it-yourself">build from source</a>.
+      macOS and Windows builds are unsigned (community-tested) — see the
+      <a href="https://github.com/FaqFirebase/pi-desktop#macos">README</a> for the one-time Gatekeeper/SmartScreen steps, or
+      <a href="https://github.com/FaqFirebase/pi-desktop#build-it-yourself">build from source</a> to skip them entirely.
     </p>
   </section>
 

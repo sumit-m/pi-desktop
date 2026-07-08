@@ -3,6 +3,8 @@ import { existsSync, mkdirSync } from 'fs'
 import { basename, join, resolve as resolvePath } from 'path'
 import { WorkspaceManager } from './workspace-manager'
 import { registerIpcHandlers } from './ipc-handlers'
+import { fetchAllCatalogPackages } from './package-catalog'
+import { activityStatsStore } from './activity-stats'
 import { configureGuiDataDir, getCanonicalUserDataDir, migrateLegacyGuiData } from './app-data-paths'
 
 // Env var honored on startup: if set, the named directory becomes the active
@@ -71,8 +73,18 @@ function createMainWindow(): BrowserWindow {
       webSecurity: true,
       allowRunningInsecureContent: false,
       experimentalFeatures: false,
+      // Enables the <webview> tag used by the HTML file preview to run its own
+      // JavaScript in an isolated guest process (no Node, separate origin),
+      // without loosening the app's own CSP.
+      webviewTag: true,
     },
   })
+
+  // Hide the top menu bar (File/Edit/View/Window). The application menu stays
+  // set so its accelerators (Ctrl+N, Ctrl+O, copy/paste, etc.) keep working;
+  // only the visible bar is hidden. autoHideMenuBar is left off so Alt won't
+  // reveal it.
+  window.setMenuBarVisibility(false)
 
   // Graceful show (avoid white flash)
   window.once('ready-to-show', () => {
@@ -93,6 +105,24 @@ function createMainWindow(): BrowserWindow {
     if (DEV_SERVER_URL && url.startsWith(DEV_SERVER_URL)) return
     if (!DEV_SERVER_URL && url.startsWith('file://')) return
     event.preventDefault()
+  })
+
+  // Harden the HTML file-preview <webview> guest before Electron attaches it:
+  // strip any preload/Node access it might request and reject anything that
+  // isn't the local `file://` preview it's meant for. Defense-in-depth against
+  // a renderer XSS trying to attach a guest with elevated webPreferences.
+  window.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+    delete webPreferences.preload
+    webPreferences.nodeIntegration = false
+    webPreferences.nodeIntegrationInSubFrames = false
+    webPreferences.contextIsolation = true
+    webPreferences.sandbox = true
+    webPreferences.webSecurity = true
+    webPreferences.allowRunningInsecureContent = false
+
+    if (!params.src.startsWith('file://')) {
+      event.preventDefault()
+    }
   })
 
   // Load renderer
@@ -209,6 +239,14 @@ app.whenReady().then(async () => {
   // Create main window
   createMainWindow()
 
+  // Warm the package catalog cache in the background so the Catalog tab is
+  // instant when first opened. Non-blocking; failures are ignored (offline etc).
+  void fetchAllCatalogPackages().catch(() => {})
+
+  // Baseline scan of the persisted activity stats, so the store reflects reality
+  // even if the home screen is never opened this run. Non-blocking.
+  void activityStatsStore.refresh()
+
   // macOS: re-create window when dock icon clicked
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -226,6 +264,9 @@ app.on('window-all-closed', () => {
 
 // Cleanup on quit
 app.on('before-quit', () => {
+  // Synchronous incremental scan + write: captures every session touched this
+  // run before we exit (async I/O isn't guaranteed to finish during shutdown).
+  activityStatsStore.flushSync()
   workspaceManager?.stopAll()
 })
 

@@ -1,7 +1,7 @@
 import { useRef, useCallback, useState, useEffect } from 'react'
 import { useAppStore } from '../store'
 import { useChatKeyboard } from '../hooks'
-import { Send, Square, Paperclip, X, FileText, NotebookPen, Users } from 'lucide-react'
+import { CornerDownLeft, Square, Paperclip, X, FileText, NotebookPen, Users } from 'lucide-react'
 import { SUPPORTED_IMAGE_EXTENSIONS, type PromptImage } from '../../../shared/ipc-contracts'
 
 // Max height (px) the auto-growing input expands to before scrolling.
@@ -160,7 +160,7 @@ export function ChatInput(): React.JSX.Element {
         </div>
       )}
 
-      <div className="relative flex items-end rounded-xl border border-neutral-700 bg-neutral-900 focus-within:border-neutral-600 transition-colors">
+      <div className="relative flex items-center rounded-xl border border-neutral-700 bg-neutral-900 focus-within:border-neutral-600 transition-colors">
         {/* Attachment button */}
         <button
           onClick={handleAttachFile}
@@ -175,7 +175,7 @@ export function ChatInput(): React.JSX.Element {
         {/* Notes picker button */}
         <button
           onClick={() => setNotePickerOpen(true)}
-          className="flex shrink-0 items-center justify-center py-3 pr-1 text-neutral-500 hover:text-neutral-300 transition-colors"
+          className="flex shrink-0 items-center justify-center py-3 pr-3 text-neutral-500 hover:text-neutral-300 transition-colors"
           title="Insert a saved note (Ctrl+Shift+P)"
           aria-label="Insert a saved note"
         >
@@ -213,7 +213,7 @@ export function ChatInput(): React.JSX.Element {
           }
           disabled={isDisabled}
           rows={1}
-          className="max-h-48 min-h-[24px] flex-1 resize-none bg-transparent py-3 text-sm text-neutral-200 placeholder:text-neutral-600 outline-none disabled:opacity-50"
+          className="font-chat max-h-48 min-h-[24px] flex-1 resize-none bg-transparent py-3 text-sm text-neutral-200 placeholder:text-neutral-600 outline-none disabled:opacity-50"
           onInput={(e) => {
             const target = e.currentTarget
             target.style.height = 'auto'
@@ -243,11 +243,11 @@ export function ChatInput(): React.JSX.Element {
           {isStreaming ? (
             <button
               onClick={handleAbort}
-              className="flex items-center justify-center rounded-lg bg-red-600 p-2 text-white hover:bg-red-500 transition-colors"
+              className="flex items-center justify-center rounded-lg p-2 text-neutral-500 hover:text-neutral-300 transition-colors"
               title="Stop (Esc)"
               aria-label="Stop generating"
             >
-              <Square size={14} />
+              <Square size={16} />
             </button>
           ) : (
             <button
@@ -259,11 +259,11 @@ export function ChatInput(): React.JSX.Element {
                 }
               }}
               disabled={isDisabled}
-              className="flex items-center justify-center rounded-lg bg-blue-600 p-2 text-white hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center rounded-lg p-2 text-neutral-500 hover:text-neutral-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="Send (Enter)"
               aria-label="Send message"
             >
-              <Send size={14} />
+              <CornerDownLeft size={16} />
             </button>
           )}
         </div>

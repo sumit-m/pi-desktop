@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { useAppStore } from './store'
 
 /**
@@ -53,23 +53,110 @@ export function useMenuActions(): void {
   }, [createNewSession, setCurrentView])
 }
 
+// Distance (px) from the bottom within which we consider the user "at bottom"
+// and keep following new content.
+const AT_BOTTOM_THRESHOLD = 48
+
 /**
- * Auto-scrolls an element to the bottom when content changes.
+ * Manages the chat scroll container:
+ *  - remembers each session's scroll offset and restores it when you switch back
+ *  - follows new/streamed content (a new prompt or live tokens) while Auto Scroll
+ *    is enabled; leaves the position alone when it's off
+ *  - jumps to the bottom when `chatScrollBottomNonce` changes (Home resume)
+ *
+ * `active` is whether the chat view is currently visible; while hidden the panel
+ * stays mounted (so scrollTop persists) but we defer any scrolling until it's
+ * shown again, so measurements are valid.
  */
-export function useAutoScroll<T>(dependency: T): React.RefObject<HTMLDivElement | null> {
+export function useChatScroll(active: boolean): {
+  scrollRef: React.RefObject<HTMLDivElement | null>
+  onScroll: () => void
+} {
   const ref = useRef<HTMLDivElement>(null)
   const autoScroll = useAppStore((state) => state.settings?.autoScroll ?? true)
+  const sessionId = useAppStore((state) => state.sessionState?.sessionId ?? null)
+  const messages = useAppStore((state) => state.messages)
+  const streamingContent = useAppStore((state) => state.streamingContent)
+  const scrollBottomNonce = useAppStore((state) => state.chatScrollBottomNonce)
 
-  useEffect(() => {
-    if (autoScroll && ref.current) {
-      ref.current.scrollTo({
-        top: ref.current.scrollHeight,
-        behavior: 'smooth',
-      })
+  const positions = useRef<Map<string, number>>(new Map())
+  const activeSession = useRef<string | null>(null)
+  const seenNonce = useRef(scrollBottomNonce)
+  const forceBottom = useRef(false)
+  // While a just-switched session's messages are still loading (async), keep
+  // re-applying the target scroll until content is actually present.
+  const pendingRestore = useRef(false)
+  // Track content size to distinguish genuinely new content from unrelated
+  // re-renders (e.g. re-showing the panel), so returning to chat doesn't scroll.
+  const prevMsgCount = useRef(0)
+  const prevStreamLen = useRef(0)
+
+  const onScroll = useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    const scrollable = el.scrollHeight - el.clientHeight
+    // Only remember a position while there's a real scroll range — avoids
+    // clobbering the saved offset with 0 when messages are momentarily cleared
+    // during a session switch.
+    if (activeSession.current !== null && scrollable > AT_BOTTOM_THRESHOLD) {
+      positions.current.set(activeSession.current, el.scrollTop)
     }
-  }, [dependency, autoScroll])
+  }, [])
 
-  return ref
+  useLayoutEffect(() => {
+    const el = ref.current
+
+    // Did content actually grow (new message or streamed text)? Tracked even
+    // while hidden so re-showing the panel isn't mistaken for new content.
+    const grew =
+      messages.length > prevMsgCount.current || streamingContent.length > prevStreamLen.current
+    prevMsgCount.current = messages.length
+    prevStreamLen.current = streamingContent.length
+
+    // Defer scrolling while hidden: a display:none element has no layout, so
+    // scrollHeight is 0 and any positioning would be wrong.
+    if (!el || !active) return
+
+    if (scrollBottomNonce !== seenNonce.current) {
+      seenNonce.current = scrollBottomNonce
+      forceBottom.current = true
+    }
+
+    const sessionKey = sessionId ?? '__none__'
+    if (activeSession.current !== sessionKey) {
+      activeSession.current = sessionKey
+      pendingRestore.current = true
+    }
+
+    if (pendingRestore.current) {
+      const saved = positions.current.get(sessionKey)
+      if (forceBottom.current || saved === undefined) {
+        el.scrollTop = el.scrollHeight
+      } else {
+        el.scrollTop = Math.min(saved, el.scrollHeight)
+      }
+      // Consider the switch settled once the session's messages have loaded.
+      if (messages.length > 0) {
+        pendingRestore.current = false
+        forceBottom.current = false
+      }
+      return
+    }
+
+    if (forceBottom.current) {
+      el.scrollTop = el.scrollHeight
+      forceBottom.current = false
+      return
+    }
+
+    // New prompt or streamed tokens in the active session: follow the bottom
+    // when Auto Scroll is enabled. When it's off, leave the position alone.
+    if (grew && autoScroll) {
+      el.scrollTop = el.scrollHeight
+    }
+  }, [active, sessionId, messages, streamingContent, scrollBottomNonce, autoScroll])
+
+  return { scrollRef: ref, onScroll }
 }
 
 /**
@@ -114,7 +201,6 @@ export function useInitialize(): void {
   const startPi = useAppStore((state) => state.startPi)
   const loadSettings = useAppStore((state) => state.loadSettings)
   const loadWorkspaces = useAppStore((state) => state.loadWorkspaces)
-  const refreshSessionState = useAppStore((state) => state.refreshSessionState)
   const refreshSessionStats = useAppStore((state) => state.refreshSessionStats)
   const refreshSessionList = useAppStore((state) => state.refreshSessionList)
 
@@ -134,6 +220,8 @@ export function useInitialize(): void {
       await useAppStore.getState().loadTags()
       await useAppStore.getState().loadArchivedSessions()
       await useAppStore.getState().loadNotes()
+      // Model id -> display-name map for chat/history; reads ~/.pi/agent/models.json.
+      void useAppStore.getState().loadCustomModels()
       // Best-effort GitHub release check (non-blocking).
       void useAppStore.getState().checkForUpdates()
 
@@ -143,16 +231,17 @@ export function useInitialize(): void {
         return
       }
 
-      // Legacy: boot into Chat and resume the last session.
+      // Legacy: boot into Chat and resume the last session. reloadActiveSession
+      // pulls the resumed session's message history (refreshSessionState alone
+      // only loads metadata, leaving the chat empty).
       useAppStore.getState().setCurrentView('chat')
       await startPi()
-      await refreshSessionState()
+      await useAppStore.getState().reloadActiveSession()
       await refreshSessionStats()
-      await refreshSessionList()
     }
 
     initialize()
-  }, [startPi, loadSettings, loadWorkspaces, refreshSessionState, refreshSessionStats, refreshSessionList])
+  }, [startPi, loadSettings, loadWorkspaces, refreshSessionStats, refreshSessionList])
 }
 
 /**
