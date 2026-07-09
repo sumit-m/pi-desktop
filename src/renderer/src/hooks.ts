@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { useAppStore } from './store'
+import { DEFAULT_SETTINGS } from '../../shared/default-settings'
 
 /**
  * Subscribes to Pi events from the main process and routes them to the store.
@@ -73,7 +74,9 @@ export function useChatScroll(active: boolean): {
   onScroll: () => void
 } {
   const ref = useRef<HTMLDivElement>(null)
-  const autoScroll = useAppStore((state) => state.settings?.autoScroll ?? true)
+  const autoScroll = useAppStore(
+    (state) => state.settingsDraft.autoScroll ?? state.settings?.autoScroll ?? DEFAULT_SETTINGS.autoScroll
+  )
   const sessionId = useAppStore((state) => state.sessionState?.sessionId ?? null)
   const messages = useAppStore((state) => state.messages)
   const streamingContent = useAppStore((state) => state.streamingContent)
@@ -212,7 +215,7 @@ export function useInitialize(): void {
 
     const initialize = async (): Promise<void> => {
       await loadSettings()
-      const openToHome = useAppStore.getState().settings?.openToHomeOnLaunch ?? true
+      const openToHome = useAppStore.getState().settings?.openToHomeOnLaunch ?? DEFAULT_SETTINGS.openToHomeOnLaunch
 
       // Pi-free data needed by both Home and Chat.
       await loadWorkspaces()

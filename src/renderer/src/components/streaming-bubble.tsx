@@ -1,6 +1,7 @@
 import { MarkdownRenderer } from './markdown-renderer'
 import { toolLabel } from './message-bubble'
 import { useAppStore } from '../store'
+import { DEFAULT_SETTINGS } from '../../../shared/default-settings'
 import { Wrench, Brain, Bot, Loader2 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -15,7 +16,7 @@ interface StreamingBubbleProps {
 
 export function StreamingBubble({ content, thinking, toolCalls }: StreamingBubbleProps): React.JSX.Element {
   const thinkingEnabled = useAppStore(
-    (state) => state.settings?.showThinking ?? false
+    (state) => state.settingsDraft.showThinking ?? state.settings?.showThinking ?? DEFAULT_SETTINGS.showThinking
   )
   return (
     <div className="mb-4 animate-fade-in">
