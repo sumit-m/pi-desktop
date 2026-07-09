@@ -86,6 +86,7 @@ export async function openFileFromChat(text: string): Promise<void> {
   if (!base) return
 
   const store = useAppStore.getState()
+  const image = isImagePath(base)
 
   try {
     // Absolute path: open it directly rather than searching the workspace.
@@ -96,7 +97,12 @@ export async function openFileFromChat(text: string): Promise<void> {
       // Only open absolute paths that live inside the active workspace.
       if (!isInsideWorkspace(raw)) return
       if (store.chatSidePanel === 'diff') store.setChatSidePanel(null)
-      store.setSelectedFile(base, original)
+      store.setPreviewTarget({
+        kind: image ? 'image' : 'code',
+        name: base,
+        path: original,
+        relativePath: base,
+      })
       return
     }
 
@@ -113,7 +119,12 @@ export async function openFileFromChat(text: string): Promise<void> {
     if (!match) return
 
     if (store.chatSidePanel === 'diff') store.setChatSidePanel(null)
-    store.setSelectedFile(match.relativePath, match.path)
+    store.setPreviewTarget({
+      kind: image ? 'image' : 'code',
+      name: match.name,
+      path: match.path,
+      relativePath: match.relativePath,
+    })
   } catch {
     // File service unavailable or no active workspace — silently ignore.
   }
