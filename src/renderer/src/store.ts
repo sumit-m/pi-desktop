@@ -177,8 +177,6 @@ interface AppState {
   // is absolute (readable via readAttachment / file:// even outside the
   // workspace); `relativePath` drives the code editor's language + header.
   previewTarget: PreviewTarget | null
-  // Legacy code-only file selection (still used by the chat file-link handler).
-  selectedFile: { relativePath: string; path: string } | null
 
   // File search
   fileSearchOpen: boolean
@@ -312,7 +310,6 @@ interface AppActions {
 
   // File preview
   setPreviewTarget: (target: PreviewTarget | null) => void
-  setSelectedFile: (relativePath: string | null, path: string | null) => void
 
   // File search
   toggleFileSearch: () => void
@@ -437,7 +434,6 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   councilRun: null,
 
   previewTarget: null,
-  selectedFile: null,
 
   fileSearchOpen: false,
 
@@ -1372,10 +1368,6 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
 
   setPreviewTarget: (target) => {
     set({ previewTarget: target })
-  },
-
-  setSelectedFile: (relativePath, path) => {
-    set({ selectedFile: relativePath && path ? { relativePath, path } : null })
   },
 
   toggleFileSearch: () => {
