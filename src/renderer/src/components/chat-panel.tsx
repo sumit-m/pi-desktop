@@ -53,7 +53,9 @@ export function ChatPanel(): React.JSX.Element {
   useEffect(() => {
     if (currentView !== 'chat') return
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+      // Plain Ctrl/Cmd+F only. Exclude Shift so Ctrl+Shift+F stays free for the
+      // workspace file-search modal; the 'F' (uppercase) case still covers Caps Lock.
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'f' || e.key === 'F')) {
         e.preventDefault()
         setSearchOpen(true)
         setSearchNonce((n) => n + 1)
