@@ -1,6 +1,7 @@
 import { memo, useState, useRef } from 'react'
 import { useAppStore, type DisplayMessage } from '../store'
 import { modelDisplayName } from '../../../shared/models-config'
+import { DEFAULT_SETTINGS } from '../../../shared/default-settings'
 import { MarkdownRenderer } from './markdown-renderer'
 import { CopyButton } from './copy-button'
 import { useContextMenu, buildMessageContextMenu } from './context-menu'
@@ -278,7 +279,7 @@ function AssistantMessage({
 }): React.JSX.Element {
   const customModels = useAppStore((state) => state.customModels)
   const thinkingEnabled = useAppStore(
-    (state) => state.settings?.showThinking ?? false
+    (state) => state.settingsDraft.showThinking ?? state.settings?.showThinking ?? DEFAULT_SETTINGS.showThinking
   )
 
   // With thinking off, a thinking-only turn (no text, no tool calls) would
