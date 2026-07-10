@@ -258,6 +258,10 @@ export function splitReadTruncationNote(content: string): { code: string; note: 
  *    `toolFile` (so it can highlight file reads / show a diff), matched by id.
  *  - drop follow-up reads of a file edited earlier in the same run (verification
  *    re-reads are noise), matching on basename; their result is dropped too.
+ *  - split a turn that mixes prose with tool calls into a prose-only message
+ *    followed by a tool-only message, so the prose renders on its own (with its
+ *    copy/export actions) and the tool calls can join an adjacent tool run and
+ *    fold into a group instead of stranding a lone badge under the prose.
  *
  * Runs before grouping. Pure; returns a new array, reusing message objects where
  * nothing changed so memoized bubbles keep stable refs.
@@ -290,11 +294,37 @@ export function prepareChatMessages(messages: DisplayMessage[]): DisplayMessage[
   }
 
   const out: DisplayMessage[] = []
+
+  // Emit an assistant turn, splitting prose+tools into two messages so the tool
+  // calls can group. A pure-prose or pure-tool turn is pushed unchanged (same
+  // object ref). The tool-only half drops the prose-owned bits (thinking, cost,
+  // attachments) and takes a derived id; it keeps model/provider so a resulting
+  // group can still show its shared header.
+  const pushAssistant = (m: DisplayMessage): void => {
+    const hasProse = m.content.trim().length > 0
+    const hasTools = (m.toolCalls?.length ?? 0) > 0
+    if (!hasProse || !hasTools) {
+      out.push(m)
+      return
+    }
+    out.push({ ...m, toolCalls: undefined })
+    out.push({
+      ...m,
+      id: `${m.id}::tools`,
+      content: '',
+      thinking: undefined,
+      cost: undefined,
+      attachments: undefined,
+    })
+  }
+
   for (const m of messages) {
     if (m.role === 'assistant' && m.toolCalls && m.toolCalls.some((tc) => hidden.has(tc.id))) {
       const kept = m.toolCalls.filter((tc) => !hidden.has(tc.id))
       if (kept.length === 0 && m.content.trim() === '') continue // whole turn was hidden reads
-      out.push({ ...m, toolCalls: kept })
+      pushAssistant({ ...m, toolCalls: kept })
+    } else if (m.role === 'assistant') {
+      pushAssistant(m)
     } else if (m.role === 'toolResult' && m.toolCallId) {
       if (hidden.has(m.toolCallId)) continue // drop the hidden read's result
       const paired = calls.get(m.toolCallId)

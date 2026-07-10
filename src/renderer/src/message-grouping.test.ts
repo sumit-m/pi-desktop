@@ -250,3 +250,51 @@ test('prepareChatMessages does not hide reads without a preceding edit', () => {
   ])
   assert.equal(out.length, 4)
 })
+
+test('prepareChatMessages splits a prose+tools turn so its tool call can group', () => {
+  const mixed = assistant({
+    id: 'm1',
+    content: 'Now let me pick two articles',
+    model: 'ornith',
+    provider: 'lmstudio',
+    cost: 0.01,
+    thinking: 'reasoning',
+    toolCalls: [{ id: 'c1', name: 'web_fetch', arguments: '{"url":"https://x.com/a"}' }],
+  })
+  const out = prepareChatMessages([
+    mixed,
+    resultFor('c1'),
+    callTurn('web_fetch', 'c2', { url: 'https://x.com/b' }),
+    resultFor('c2'),
+  ])
+
+  // The mixed turn becomes: prose-only (keeps id/content/thinking/cost) + a
+  // tool-only half (derived id, no prose bits, keeps model for the group header).
+  const prosePart = out[0]
+  assert.equal(prosePart.id, 'm1')
+  assert.equal(prosePart.content, 'Now let me pick two articles')
+  assert.equal(prosePart.thinking, 'reasoning')
+  assert.equal(prosePart.toolCalls, undefined)
+
+  const toolPart = out[1]
+  assert.equal(toolPart.id, 'm1::tools')
+  assert.equal(toolPart.content, '')
+  assert.equal(toolPart.thinking, undefined)
+  assert.equal(toolPart.cost, undefined)
+  assert.equal(toolPart.model, 'ornith')
+  assert.equal(toolPart.toolCalls?.[0].id, 'c1')
+
+  // After grouping, the split tool call joins the second fetch into one group.
+  const items = groupToolMessages(out)
+  assert.deepEqual(titles(items), ['Fetched 2 URLs'])
+  assert.equal(items[0].kind, 'message') // the prose renders on its own first
+  assert.equal(items[1].kind, 'toolGroup')
+})
+
+test('prepareChatMessages leaves a pure-prose or pure-tool turn as the same object', () => {
+  const p = prose('just text')
+  const t = toolTurn('web_fetch', { url: 'https://x.com' })
+  const out = prepareChatMessages([p, t])
+  assert.equal(out[0], p) // same ref — nothing to split
+  assert.equal(out[1], t)
+})

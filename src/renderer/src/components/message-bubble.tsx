@@ -11,6 +11,7 @@ import {
   splitReadTruncationNote,
   type EditBlock,
 } from '../message-grouping'
+import { toolCallIconFor } from './tool-call-icon'
 import { getCodeEditorLanguageName } from './code-editor-language'
 import { highlightCodeToHtml } from './chat-code-highlight'
 import { LineNumberedCode } from './line-numbered-code'
@@ -23,7 +24,6 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  Wrench,
   Brain,
   Bot,
   Edit3,
@@ -310,13 +310,36 @@ function AssistantMessage({
     return <></>
   }
 
+  // A turn whose only body is tool calls (no prose) is a pure tool operation, so
+  // its avatar mirrors the operation (globe for a fetch, document for a read, …)
+  // instead of the Bot avatar / group spacer.
+  const ToolIcon =
+    message.content.trim().length === 0 && message.toolCalls && message.toolCalls.length > 0
+      ? toolCallIconFor(message.toolCalls[0].name)
+      : null
+
+  // A pure tool operation doesn't get its own provider · model header — that
+  // header (with the Bot avatar) belongs to the prose turn it split from, and
+  // repeating it would push the operation icon up next to the header instead of
+  // sitting in front of the tool-call box. So it's shown only for non-tool turns.
+  const showModelHeader = !!message.model && !hideModelHeader && ToolIcon === null
+
   return (
     <div className="group mb-4 animate-fade-in">
       <div className="flex items-start gap-3">
-        {/* Avatar — suppressed inside a tool group (the group shows one above),
-            keeping an empty spacer so the tool boxes stay aligned with the
-            wrench-avatared result rows. */}
-        {hideModelHeader ? (
+        {/* Avatar — a tool-only turn shows its operation icon; otherwise the Bot
+            avatar, except inside a tool group (the group shows one shared header
+            above) where a prose/thinking turn keeps an empty spacer so its body
+            stays aligned with the icon-avatared rows. */}
+        {ToolIcon ? (
+          // Center the icon on the tool-call box's header row (h-8 ≈ py-2 +
+          // text-xs) instead of top-aligning, so it lines up with the box text.
+          <div className="flex h-8 w-7 shrink-0 items-center justify-center">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-800">
+              <ToolIcon size={14} className="text-neutral-500" />
+            </div>
+          </div>
+        ) : hideModelHeader ? (
           <div className="h-7 w-7 shrink-0" />
         ) : (
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-800">
@@ -327,11 +350,11 @@ function AssistantMessage({
         {/* Content */}
         <div className="min-w-0 flex-1">
           {/* Model info */}
-          {message.model && !hideModelHeader && (
+          {showModelHeader && (
             <div className="flex h-7 items-center gap-2 text-sm text-neutral-500">
               <span>{message.provider}</span>
               <span className="text-neutral-700">·</span>
-              <span>{modelDisplayName(message.model, customModels)}</span>
+              <span>{modelDisplayName(message.model!, customModels)}</span>
               {message.cost !== undefined && (
                 <>
                   <span className="text-neutral-700">·</span>
@@ -377,23 +400,13 @@ function AssistantMessage({
             </div>
           )}
 
-          {/* Tool calls */}
-          {message.toolCalls && message.toolCalls.length > 0 && (
-            <div className={clsx(
-              'space-y-1',
-              // Only pad the top when something sits above; otherwise the box
-              // should top-align with the avatar.
-              (message.model || message.thinking || message.content) && 'mt-2'
-            )}>
-              {message.toolCalls.map((tc) => (
-                <ToolCallBadge key={tc.id} toolCall={tc} />
-              ))}
-            </div>
-          )}
-
-          {/* Actions — only when there is real response text (a tool-only
-              message's content is just whitespace/newlines, which is truthy but
-              has nothing to copy/export). Always visible when shown. */}
+          {/* Actions — copy/export the response text. Rendered directly beneath
+              the text (before any tool calls) so on a turn that mixes prose with
+              tool calls the buttons stay attached to the prose instead of landing
+              under the tool-call box and splitting a run of grouped tool badges.
+              Only shown when there's real response text — a tool-only message's
+              content is just whitespace/newlines, which is truthy but has nothing
+              to copy/export. Always visible when shown. */}
           {message.content.trim() && (
             <div className="mt-2 flex items-center gap-0.5">
               <ActionButton
@@ -403,6 +416,26 @@ function AssistantMessage({
                 label={copied ? 'Copied' : 'Copy'}
               />
               <ActionButton icon={<Download size={11} />} onClick={onExport} title="Export" />
+            </div>
+          )}
+
+          {/* Tool calls */}
+          {message.toolCalls && message.toolCalls.length > 0 && (
+            <div className={clsx(
+              'space-y-1',
+              // Pad the top only when something actually renders above the tool
+              // box — a visible model header, a thinking block, or response text.
+              // A tool-only turn has no header (showModelHeader is false), so it
+              // top-aligns with its icon avatar; that also keeps the gap between
+              // grouped call/result pairs equal to the gap within a pair (no stray
+              // 8px from an mt-2 sitting under a suppressed header).
+              (showModelHeader ||
+                (message.thinking && thinkingEnabled) ||
+                message.content.trim().length > 0) && 'mt-2'
+            )}>
+              {message.toolCalls.map((tc) => (
+                <ToolCallBadge key={tc.id} toolCall={tc} />
+              ))}
             </div>
           )}
         </div>
@@ -563,9 +596,9 @@ function ToolResultMessage({ message }: { message: DisplayMessage }): React.JSX.
   return (
     <div className="mb-4 animate-fade-in">
       <div className="flex items-start gap-3">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-800">
-          <Wrench size={14} className="text-neutral-500" />
-        </div>
+        {/* No result icon — an empty spacer (same width as a tool-call avatar)
+            keeps the result box left-aligned with the tool-call box above it. */}
+        <div className="w-7 shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="relative rounded-lg border border-neutral-800 bg-neutral-900/50">
             <CopyButton text={message.content} className="absolute right-1.5 top-1.5" />
@@ -729,12 +762,14 @@ function ToolGroupBubbleImpl({
               )}
             </button>
           </div>
-          {/* Expanded body: the original messages, on a left rail to signal they
-              belong to the group. Per-turn model headers are suppressed since the
-              group already shows one above. Last child's bottom margin trimmed so
-              it doesn't double up on the group's own mb-4. */}
+          {/* Expanded body: the original messages, slightly indented to signal
+              they belong to the group. Per-turn model headers are suppressed since
+              the group already shows one above. mt-4 matches the mb-4 gap between
+              the rows inside, so the header→first-row gap equals the row-to-row
+              gap. Last child's bottom margin trimmed so it doesn't double up on
+              the group's own mb-4. */}
           {expanded && (
-            <div className="mt-2 border-l border-neutral-800 pl-3 [&>*:last-child]:mb-0">
+            <div className="mt-4 pl-3 [&>*:last-child]:mb-0">
               {messages.map((m) => (
                 <MessageBubble
                   key={m.id}
