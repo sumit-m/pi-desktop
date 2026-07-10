@@ -588,9 +588,9 @@ export function FilePreview(): React.JSX.Element | null {
       <div className="flex flex-1 flex-col overflow-auto">
         {isPdf ? (
           <Webview
-            // Ask Chromium's PDF viewer to open with the thumbnail/bookmark
-            // sidebar hidden but keep the toolbar (zoom/print).
-            src={`${toFileUrl(path)}#toolbar=1&navpanes=0`}
+            // Ask Chromium's PDF viewer to open with both the thumbnail/bookmark
+            // sidebar and the top toolbar hidden, for a clean embedded preview.
+            src={`${toFileUrl(path)}#toolbar=0&navpanes=0`}
             partition="persist:pdf-preview"
             plugins
             className="flex-1"
