@@ -2,9 +2,37 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store'
 import { ChevronUp, ChevronDown, X } from 'lucide-react'
 
-// Named CSS custom highlights (styled via ::highlight() in index.css).
+// Named CSS custom highlights, styled via the ::highlight() rules injected by
+// ensureHighlightStyles() below.
 const HIGHLIGHT_ALL = 'pi-search'
 const HIGHLIGHT_CURRENT = 'pi-search-current'
+
+// These rules are injected at runtime via a plain <style> element rather than
+// living in index.css: Tailwind's Lightning CSS transformer doesn't recognize
+// the ::highlight() pseudo-element and — depending on lightningcss version —
+// drops the rule at build time (it warns, and newer versions strip it), which
+// would leave search matches with no visible highlight in the built app.
+// Injecting the <style> bypasses that pipeline entirely.
+const HIGHLIGHT_STYLE_ID = 'pi-search-highlight-styles'
+const HIGHLIGHT_CSS = `
+::highlight(${HIGHLIGHT_ALL}) {
+  background-color: rgba(250, 204, 21, 0.28);
+}
+::highlight(${HIGHLIGHT_CURRENT}) {
+  background-color: rgba(250, 204, 21, 0.85);
+  color: #1a1a1a;
+}
+`
+
+// Idempotently add the highlight rules to <head> (keyed by id).
+function ensureHighlightStyles(): void {
+  if (typeof document === 'undefined') return
+  if (document.getElementById(HIGHLIGHT_STYLE_ID)) return
+  const style = document.createElement('style')
+  style.id = HIGHLIGHT_STYLE_ID
+  style.textContent = HIGHLIGHT_CSS
+  document.head.appendChild(style)
+}
 
 // Feature-detect the CSS Custom Highlight API (Chromium 105+, always present in
 // our Electron; guarded so a missing API degrades to "no highlight" rather than
@@ -127,6 +155,11 @@ export function ChatSearch({
     applyHighlights(ranges, idx)
     if (queryChanged && ranges.length > 0) scrollIntoView(ranges, idx)
   }, [query, messages, computeRanges, applyHighlights, scrollIntoView])
+
+  // Inject the ::highlight() rules once (see note by HIGHLIGHT_CSS).
+  useEffect(() => {
+    ensureHighlightStyles()
+  }, [])
 
   // Focus (and select) on open and whenever Ctrl+F is pressed again.
   useEffect(() => {
