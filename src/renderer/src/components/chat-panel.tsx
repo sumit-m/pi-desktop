@@ -3,12 +3,13 @@ import { ChatInput } from './chat-input'
 import { CouncilPanels } from './council-panels'
 import { MessageBubble } from './message-bubble'
 import { StreamingBubble } from './streaming-bubble'
+import { ChatSearch } from './chat-search'
 import { FileTree, FileSearch, FilePreview } from './file-tree'
 import { ImageViewer } from './image-viewer'
 import { DiffViewer } from './diff-viewer'
 import { TerminalPanel } from './terminal'
 import { useChatScroll } from '../hooks'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { clsx } from 'clsx'
 import piLogo from '../assets/pi-logo.svg'
 import {
@@ -45,6 +46,32 @@ export function ChatPanel(): React.JSX.Element {
 
   const currentView = useAppStore((state) => state.currentView)
   const { scrollRef, onScroll, atBottom, scrollToBottom } = useChatScroll(currentView === 'chat')
+
+  // In-conversation search (Ctrl/Cmd+F while in chat). The nonce bumps on every
+  // press so re-triggering refocuses/selects the already-open input.
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchNonce, setSearchNonce] = useState(0)
+  useEffect(() => {
+    if (currentView !== 'chat') return
+    const onKey = (e: KeyboardEvent) => {
+      // The 'F' (uppercase) case also covers Caps Lock. Ctrl/Cmd+F opens the
+      // in-conversation find bar; adding Shift opens the workspace file-search
+      // modal. Both handled here at the window level so they fire regardless of
+      // focus (the file-search shortcut used to be composer-scoped, so it only
+      // worked while the textarea had focus).
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault()
+        if (e.shiftKey) {
+          useAppStore.getState().toggleFileSearch()
+        } else {
+          setSearchOpen(true)
+          setSearchNonce((n) => n + 1)
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [currentView])
 
   const handleRetry = useCallback(async (messageId: string) => {
     // Read from the store so this callback stays referentially stable, keeping
@@ -121,6 +148,13 @@ export function ChatPanel(): React.JSX.Element {
 
           {/* Messages area */}
           <div className="relative flex min-h-0 flex-1 flex-col">
+            {searchOpen && (
+              <ChatSearch
+                containerRef={scrollRef}
+                focusNonce={searchNonce}
+                onClose={() => setSearchOpen(false)}
+              />
+            )}
             <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto">
               {messages.length === 0 && !isStreaming ? (
                 <EmptyState piStatus={piStatus} />

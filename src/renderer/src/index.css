@@ -925,3 +925,8 @@
     animation: fade-in 0.2s ease-out;
   }
 }
+
+/* In-conversation search highlights (the ::highlight() rules for the CSS Custom
+   Highlight API) are injected at runtime from chat-search.tsx — Tailwind's
+   Lightning CSS transformer drops the unrecognized ::highlight() pseudo-element
+   at build time, so they can't live here. */
