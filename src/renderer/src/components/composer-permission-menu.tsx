@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronUp, Check } from 'lucide-react'
 import { clsx } from 'clsx'
 import type { PermissionMode } from '../../../shared/ipc-contracts'
-import { DEFAULT_PERMISSION_MODE, PERMISSION_MODE_OPTIONS, getPermissionModeLabel } from './permission-mode'
+import {
+  DEFAULT_PERMISSION_MODE,
+  PERMISSION_MODE_OPTIONS,
+  getPermissionModeLabel,
+  getPermissionModeDescription,
+} from './permission-mode'
 
 interface ComposerPermissionMenuProps {
   value: PermissionMode | null | undefined
@@ -53,7 +58,7 @@ export function ComposerPermissionMenu({ value, onChange }: ComposerPermissionMe
             ? 'bg-yellow-500/15 text-yellow-300 hover:bg-yellow-500/35 hover:text-yellow-200'
             : 'pi-hover-highlight text-neutral-300 hover:text-neutral-200'
         )}
-        title="Permission mode"
+        title={getPermissionModeDescription(mode).replace(/\.$/, '')}
       >
         {getPermissionModeLabel(mode)}
         <ChevronUp
