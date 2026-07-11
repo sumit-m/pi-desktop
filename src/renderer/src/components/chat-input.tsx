@@ -522,7 +522,6 @@ export function ChatInput(): React.JSX.Element {
         <div className="flex gap-3">
           <span>Enter: send</span>
           <span>Shift+Enter: newline</span>
-          <span>@: file</span>
           <span>Esc: stop</span>
           <span>Ctrl+P: model</span>
           <span>Ctrl+Shift+F: search</span>
