@@ -257,6 +257,10 @@ export function useChatScroll(active: boolean): {
         restoreAnchor(el, saved)
       }
       forceBottom.current = false
+      // Refresh the jump-to-bottom button against the restored position: content
+      // height may have changed while hidden (e.g. Show Thinking toggled), so the
+      // stale at-bottom state would otherwise hide the chevron until the next scroll.
+      syncAtBottom()
       return
     }
 
