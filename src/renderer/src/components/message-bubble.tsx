@@ -325,6 +325,18 @@ function AssistantMessage({
   // in and repeating it per row would just be noise.
   const showModelHeader = !!message.model && !hideModelHeader
 
+  // A grouped thinking-only turn (thinking, no text, no tool calls). It sits
+  // between the call/result rows of a serial run; with the default mb-4 rhythm it
+  // ends up 16px from its neighbours, which reads as too airy for a bare
+  // "Thinking" toggle. Tighten it to 8px on both sides: pull it up 8px against the
+  // previous row's mb-4 (-mt-2) and give it an 8px bottom (mb-2) instead of mb-4.
+  const isGroupedPureThinking =
+    hideModelHeader &&
+    !!message.thinking &&
+    thinkingEnabled &&
+    message.content.trim().length === 0 &&
+    (message.toolCalls?.length ?? 0) === 0
+
   // A pure-tool turn (body is only tool calls): render every call on its own row
   // behind its own operation icon, so each call — including parallel calls in a
   // single turn — is labelled with the right glyph. Standalone (attributed) turns
@@ -423,7 +435,7 @@ function AssistantMessage({
   }
 
   return (
-    <div className="group mb-4 animate-fade-in">
+    <div className={clsx('group animate-fade-in', isGroupedPureThinking ? '-mt-2 mb-2' : 'mb-4')}>
       <div className="flex items-start gap-3">
         {/* Avatar — the Bot avatar for a prose turn, except inside a tool group
             (the group shows one shared header above) where it keeps an empty
@@ -456,9 +468,17 @@ function AssistantMessage({
             </div>
           )}
 
-          {/* Thinking block — gated by the Show Thinking setting */}
+          {/* Thinking block — gated by the Show Thinking setting. mb-2 only when a
+              body (text/tool calls) follows it; on a pure-thinking turn there's
+              nothing below, so the mb-2 would stack on the message's own mb-4 and
+              leave the block with a bigger gap below than above. */}
           {message.thinking && thinkingEnabled && (
-            <div className="thinking-hover mb-2">
+            <div
+              className={clsx(
+                'thinking-hover',
+                (message.content.trim().length > 0 || (message.toolCalls?.length ?? 0) > 0) && 'mb-2'
+              )}
+            >
               <div className="flex h-7 items-center gap-1">
                 <button
                   onClick={onToggleThinking}
