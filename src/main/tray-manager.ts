@@ -1,6 +1,6 @@
 import { Tray, Menu, Notification, nativeImage, type BrowserWindow } from 'electron'
 import { execFile } from 'child_process'
-import { trayIsSupported } from './tray-decision'
+import { trayIsSupported, parseDbusBoolean } from './tray-decision'
 
 // System-tray lifecycle for "minimize to tray on close" (Windows/Linux; macOS
 // is excluded — see tray-decision.ts). Owns the single Tray instance, the
@@ -12,6 +12,7 @@ import { trayIsSupported } from './tray-decision'
 // D-Bus well-known name a StatusNotifierItem host claims when a system tray is
 // available (KDE, GNOME's AppIndicator extension, sni-qt, snixembed, etc.).
 const SNI_WATCHER_NAME = 'org.kde.StatusNotifierWatcher'
+const SNI_WATCHER_PATH = '/StatusNotifierWatcher'
 // Bound the D-Bus probe so a missing/slow session bus can't hang enabling.
 const DBUS_PROBE_TIMEOUT_MS = 2_000
 
@@ -76,34 +77,50 @@ function createTray(): boolean {
   }
 }
 
+/** Run a `dbus-send --print-reply` and resolve its stdout, or null on error. */
+function dbusSend(args: string[]): Promise<string | null> {
+  return new Promise((resolve) => {
+    execFile('dbus-send', args, { timeout: DBUS_PROBE_TIMEOUT_MS }, (err, stdout) => {
+      resolve(err ? null : stdout)
+    })
+  })
+}
+
 /**
  * Probe the session bus for a StatusNotifierItem host. Resolves false when no
  * host is present (GNOME without the AppIndicator extension, a minimal WM), when
  * there is no session bus, or when `dbus-send` is unavailable — all cases where
  * an Electron tray icon would silently not appear.
+ *
+ * Two-step check: the watcher name must be owned, AND — when the watcher exposes
+ * it — `IsStatusNotifierHostRegistered` must not be false. That property is the
+ * definitive "a host is actually attached to render icons" signal, catching the
+ * rare case where the watcher name is owned but no host registered. If the
+ * property can't be read (null), we trust the owned name rather than risk a
+ * false negative that needlessly disables a working tray.
  */
-function detectLinuxTrayHost(): Promise<boolean> {
-  return new Promise((resolve) => {
-    execFile(
-      'dbus-send',
-      [
-        '--session',
-        '--print-reply',
-        '--dest=org.freedesktop.DBus',
-        '/org/freedesktop/DBus',
-        'org.freedesktop.DBus.NameHasOwner',
-        `string:${SNI_WATCHER_NAME}`,
-      ],
-      { timeout: DBUS_PROBE_TIMEOUT_MS },
-      (err, stdout) => {
-        if (err) {
-          resolve(false)
-          return
-        }
-        resolve(/boolean\s+true/.test(stdout))
-      },
-    )
-  })
+async function detectLinuxTrayHost(): Promise<boolean> {
+  const ownerReply = await dbusSend([
+    '--session',
+    '--print-reply',
+    '--dest=org.freedesktop.DBus',
+    '/org/freedesktop/DBus',
+    'org.freedesktop.DBus.NameHasOwner',
+    `string:${SNI_WATCHER_NAME}`,
+  ])
+  if (parseDbusBoolean(ownerReply ?? '') !== true) return false
+
+  const hostReply = await dbusSend([
+    '--session',
+    '--print-reply',
+    `--dest=${SNI_WATCHER_NAME}`,
+    SNI_WATCHER_PATH,
+    'org.freedesktop.DBus.Properties.Get',
+    `string:${SNI_WATCHER_NAME}`,
+    'string:IsStatusNotifierHostRegistered',
+  ])
+  // Only a definitive `false` disqualifies; true or unknown (null) → available.
+  return parseDbusBoolean(hostReply ?? '') !== false
 }
 
 /** Warn once (best-effort) when the feature is on but no tray is available. */

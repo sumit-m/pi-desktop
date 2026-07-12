@@ -2,6 +2,18 @@
 // `electron` import so it can be unit-tested under a plain Node runtime. The
 // electron-facing Tray lifecycle lives in tray-manager.ts.
 
+/**
+ * Parse a `dbus-send --print-reply` boolean reply body. Handles both a bare
+ * `boolean <v>` (NameHasOwner) and a `variant boolean <v>` (a property Get).
+ * Returns null when no boolean is present (e.g. an error reply or empty output),
+ * so callers can distinguish "definitely false" from "couldn't determine".
+ */
+export function parseDbusBoolean(stdout: string): boolean | null {
+  if (/\bboolean\s+true\b/.test(stdout)) return true
+  if (/\bboolean\s+false\b/.test(stdout)) return false
+  return null
+}
+
 /** Platforms where the app supports a system-tray / minimize-to-tray idiom. */
 export function trayIsSupported(platform: NodeJS.Platform): boolean {
   // macOS is intentionally excluded: closing the window there already keeps the

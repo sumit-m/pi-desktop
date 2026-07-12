@@ -1,6 +1,19 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { shouldHideToTray, trayIsSupported } from './tray-decision'
+import { shouldHideToTray, trayIsSupported, parseDbusBoolean } from './tray-decision'
+
+test('parseDbusBoolean reads NameHasOwner and property replies', () => {
+  assert.equal(parseDbusBoolean('   boolean true\n'), true)
+  assert.equal(parseDbusBoolean('   boolean false\n'), false)
+  // Property Get wraps the value in a variant.
+  assert.equal(parseDbusBoolean('   variant       boolean true\n'), true)
+  assert.equal(parseDbusBoolean('   variant       boolean false\n'), false)
+})
+
+test('parseDbusBoolean returns null when no boolean is present', () => {
+  assert.equal(parseDbusBoolean(''), null)
+  assert.equal(parseDbusBoolean('Error org.freedesktop.DBus.Error.UnknownObject'), null)
+})
 
 test('trayIsSupported is true on Windows and Linux, false on macOS', () => {
   assert.equal(trayIsSupported('win32'), true)
