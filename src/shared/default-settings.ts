@@ -24,5 +24,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   collapsedSessionGroups: [],
   openToHomeOnLaunch: true,
   runOnStartup: false,
+  minimizeToTrayOnClose: false,
+  hasSeenTrayHint: false,
   council: DEFAULT_COUNCIL_CONFIG,
 }

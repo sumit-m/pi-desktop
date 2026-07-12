@@ -41,6 +41,7 @@ import { readAttachment } from './attachment-reader'
 import { runConsultants, defaultSpawnConsultant } from './council-manager'
 import { fetchPackageCatalog } from './package-catalog'
 import { applyRunOnStartup } from './startup-launch'
+import { setTrayEnabled } from './tray-manager'
 import type { SessionLineageRecord } from '../shared/session-lineage'
 import { readdir, stat, readFile, writeFile, mkdir, access, unlink } from 'fs/promises'
 import { basename, join } from 'path'
@@ -612,6 +613,11 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
     // part of this save to avoid redundant OS writes.
     if ('runOnStartup' in settings) {
       await applyRunOnStartup(Boolean((settings as Partial<AppSettings>).runOnStartup))
+    }
+    // Reflect a "minimize to tray" change immediately: create/destroy the tray
+    // icon so the close behavior matches the new setting without a restart.
+    if ('minimizeToTrayOnClose' in settings) {
+      setTrayEnabled(Boolean((settings as Partial<AppSettings>).minimizeToTrayOnClose))
     }
     return loadAppSettings(workspaceManager)
   })
@@ -1554,7 +1560,7 @@ function getSettingsPath(): string {
   return getGuiDataPath(SETTINGS_FILE_NAME)
 }
 
-async function loadAppSettings(workspaceManager: WorkspaceManager): Promise<AppSettings> {
+export async function loadAppSettings(workspaceManager: WorkspaceManager): Promise<AppSettings> {
   try {
     const settingsPath = getSettingsPath()
     if (existsSync(settingsPath)) {
@@ -1572,7 +1578,7 @@ async function loadAppSettings(workspaceManager: WorkspaceManager): Promise<AppS
   }
 }
 
-async function saveAppSettings(settings: Partial<AppSettings>): Promise<void> {
+export async function saveAppSettings(settings: Partial<AppSettings>): Promise<void> {
   const settingsPath = getSettingsPath()
   const dir = join(settingsPath, '..')
 

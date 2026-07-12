@@ -32,6 +32,7 @@ export function SettingsPanel(): React.JSX.Element {
   const [resumeLastSession, setResumeLastSession] = useState(draft0.resumeLastSession ?? settings?.resumeLastSession ?? DEFAULT_SETTINGS.resumeLastSession)
   const [openToHomeOnLaunch, setOpenToHomeOnLaunch] = useState(draft0.openToHomeOnLaunch ?? settings?.openToHomeOnLaunch ?? DEFAULT_SETTINGS.openToHomeOnLaunch)
   const [runOnStartup, setRunOnStartup] = useState(draft0.runOnStartup ?? settings?.runOnStartup ?? DEFAULT_SETTINGS.runOnStartup)
+  const [minimizeToTrayOnClose, setMinimizeToTrayOnClose] = useState(draft0.minimizeToTrayOnClose ?? settings?.minimizeToTrayOnClose ?? DEFAULT_SETTINGS.minimizeToTrayOnClose)
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(
     draft0.permissionMode ?? settings?.permissionMode ?? DEFAULT_SETTINGS.permissionMode,
   )
@@ -78,6 +79,15 @@ export function SettingsPanel(): React.JSX.Element {
     await loadSettings()
   }
 
+  // Persist and apply a setting immediately, for toggles with an OS-level side
+  // effect (tray behavior, login item). These must take effect the instant they
+  // are flipped — staging them behind the Save button makes a toggle look "on"
+  // while the behavior is still off, which is surprising and easy to miss.
+  const applyImmediate = async (patch: Partial<AppSettings>): Promise<void> => {
+    await window.piDesktop.settings.save(patch)
+    await loadSettings()
+  }
+
   // Populate the form once, when settings first load. We deliberately do NOT
   // re-sync on every settings change: the UI font previews live and the
   // terminal/editor sizes are staged in store state, so re-syncing would
@@ -99,6 +109,7 @@ export function SettingsPanel(): React.JSX.Element {
     setResumeLastSession(draft.resumeLastSession ?? settings.resumeLastSession)
     setOpenToHomeOnLaunch(draft.openToHomeOnLaunch ?? settings.openToHomeOnLaunch)
     setRunOnStartup(draft.runOnStartup ?? settings.runOnStartup)
+    setMinimizeToTrayOnClose(draft.minimizeToTrayOnClose ?? settings.minimizeToTrayOnClose)
     setPermissionMode(draft.permissionMode ?? settings.permissionMode)
   }, [settings])
 
@@ -122,6 +133,7 @@ export function SettingsPanel(): React.JSX.Element {
       resumeLastSession,
       openToHomeOnLaunch,
       runOnStartup,
+      minimizeToTrayOnClose,
       permissionMode,
     }
 
@@ -158,6 +170,7 @@ export function SettingsPanel(): React.JSX.Element {
       resumeLastSession: DEFAULT_SETTINGS.resumeLastSession,
       openToHomeOnLaunch: DEFAULT_SETTINGS.openToHomeOnLaunch,
       runOnStartup: DEFAULT_SETTINGS.runOnStartup,
+      minimizeToTrayOnClose: DEFAULT_SETTINGS.minimizeToTrayOnClose,
       permissionMode: DEFAULT_SETTINGS.permissionMode,
     }
 
@@ -171,6 +184,7 @@ export function SettingsPanel(): React.JSX.Element {
     setResumeLastSession(defaults.resumeLastSession!)
     setOpenToHomeOnLaunch(defaults.openToHomeOnLaunch!)
     setRunOnStartup(defaults.runOnStartup!)
+    setMinimizeToTrayOnClose(defaults.minimizeToTrayOnClose!)
     setPermissionMode(defaults.permissionMode!)
 
     const result = await window.piDesktop.settings.save(defaults)
@@ -336,7 +350,14 @@ export function SettingsPanel(): React.JSX.Element {
             label="Run on Startup"
             description="Automatically start Pi Desktop when you log in to your computer (takes effect in installed builds)"
           >
-            <Toggle checked={runOnStartup} onChange={(v) => { setRunOnStartup(v); setSettingsDraft({ runOnStartup: v }) }} />
+            <Toggle checked={runOnStartup} onChange={(v) => { setRunOnStartup(v); void applyImmediate({ runOnStartup: v }) }} />
+          </SettingsRow>
+
+          <SettingsRow
+            label="Minimize to Tray on Close"
+            description="Keep Pi Desktop running in the system tray when you close the window instead of quitting (Windows and Linux)"
+          >
+            <Toggle checked={minimizeToTrayOnClose} onChange={(v) => { setMinimizeToTrayOnClose(v); void applyImmediate({ minimizeToTrayOnClose: v }) }} />
           </SettingsRow>
         </SettingsSection>
 

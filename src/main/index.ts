@@ -2,10 +2,12 @@ import { app, BrowserWindow, Menu, nativeImage, shell } from 'electron'
 import { existsSync, mkdirSync } from 'fs'
 import { basename, join, resolve as resolvePath } from 'path'
 import { WorkspaceManager } from './workspace-manager'
-import { registerIpcHandlers } from './ipc-handlers'
+import { registerIpcHandlers, loadAppSettings, saveAppSettings } from './ipc-handlers'
 import { fetchAllCatalogPackages } from './package-catalog'
 import { activityStatsStore } from './activity-stats'
 import { configureGuiDataDir, getCanonicalUserDataDir, migrateLegacyGuiData } from './app-data-paths'
+import { setupTray, setTrayEnabled, isTrayEnabled, isTrayAvailable, destroyTray, notifyFirstHide } from './tray-manager'
+import { shouldHideToTray } from './tray-decision'
 
 // Env var honored on startup: if set, the named directory becomes the active
 // workspace (created on first run, switched to on subsequent runs). The CLI
@@ -47,6 +49,24 @@ function getAppIconPath(): string {
 // ─── Workspace Manager (singleton) ───────────────────────────────────────────
 
 let workspaceManager: WorkspaceManager | null = null
+
+// The single main window, tracked so the tray, single-instance relaunch, and
+// macOS dock-activate can all bring it back. `isQuitting` distinguishes a real
+// quit (menu/tray Quit, Cmd-Ctrl+Q) from a window close that should hide to tray.
+let mainWindow: BrowserWindow | null = null
+let isQuitting = false
+
+// Single-instance lock: with "minimize to tray" the window can be hidden while
+// the app keeps running, so a relaunch (taskbar, launcher, `pi-desktop <path>`)
+// must focus the existing instance instead of spawning a second one. The second
+// process exits immediately; the first receives 'second-instance'.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    showMainWindow()
+  })
+}
 
 const canonicalUserDataDir = getCanonicalUserDataDir(app.getPath('appData'))
 mkdirSync(canonicalUserDataDir, { recursive: true })
@@ -90,6 +110,21 @@ function createMainWindow(): BrowserWindow {
   window.once('ready-to-show', () => {
     window.show()
     window.focus()
+  })
+
+  // Minimize-to-tray: when enabled (Windows/Linux), a window close hides the
+  // window and keeps the app running instead of quitting. A real quit sets
+  // `isQuitting` first (see before-quit), so this only intercepts user closes.
+  window.on('close', (event) => {
+    if (shouldHideToTray({ isQuitting, enabled: isTrayEnabled(), platform: process.platform, trayAvailable: isTrayAvailable() })) {
+      event.preventDefault()
+      window.hide()
+      notifyFirstHide()
+    }
+  })
+
+  window.on('closed', () => {
+    if (mainWindow === window) mainWindow = null
   })
 
   // Open external links in default browser
@@ -141,7 +176,20 @@ function createMainWindow(): BrowserWindow {
     window.webContents.openDevTools({ mode: 'detach' })
   }
 
+  mainWindow = window
   return window
+}
+
+// Bring the main window to the foreground, re-creating it if it was fully
+// closed. Used by the tray, single-instance relaunch, and macOS dock activate.
+function showMainWindow(): void {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  } else {
+    createMainWindow()
+  }
 }
 
 // ─── Application Menu ────────────────────────────────────────────────────────
@@ -243,6 +291,20 @@ app.whenReady().then(async () => {
   // Create main window
   createMainWindow()
 
+  // System tray: inject deps once, then enable it if the setting is on. The
+  // one-time "still running" hint reads/persists via app settings.
+  const settings = await loadAppSettings(workspaceManager)
+  setupTray({
+    getWindow: () => mainWindow,
+    quit: () => app.quit(),
+    iconPath: getAppIconPath(),
+    hasSeenHint: settings.hasSeenTrayHint,
+    onHintShown: () => {
+      void saveAppSettings({ hasSeenTrayHint: true })
+    },
+  })
+  setTrayEnabled(settings.minimizeToTrayOnClose)
+
   // Warm the package catalog cache in the background so the Catalog tab is
   // instant when first opened. Non-blocking; failures are ignored (offline etc).
   void fetchAllCatalogPackages().catch(() => {})
@@ -251,11 +313,10 @@ app.whenReady().then(async () => {
   // even if the home screen is never opened this run. Non-blocking.
   void activityStatsStore.refresh()
 
-  // macOS: re-create window when dock icon clicked
+  // macOS: re-show (or re-create) the window when the dock icon is clicked.
+  // showMainWindow handles both a hidden window and a fully-closed one.
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow()
-    }
+    showMainWindow()
   })
 })
 
@@ -268,6 +329,12 @@ app.on('window-all-closed', () => {
 
 // Cleanup on quit
 app.on('before-quit', () => {
+  // Mark a real quit so the window `close` handler stops hiding to tray and lets
+  // the window actually close. This is the single choke point every quit path
+  // flows through (menu/tray Quit, Cmd-Ctrl+Q).
+  isQuitting = true
+  // Release the tray icon so it doesn't linger in the notification area.
+  destroyTray()
   // Synchronous incremental scan + write: captures every session touched this
   // run before we exit (async I/O isn't guaranteed to finish during shutdown).
   activityStatsStore.flushSync()

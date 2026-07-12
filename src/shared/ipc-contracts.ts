@@ -670,6 +670,13 @@ export interface AppSettings {
   // Applied at the OS level: login items on macOS/Windows, a freedesktop
   // autostart entry on Linux. Only effective in packaged builds.
   runOnStartup: boolean
+  // Hide the window to the system tray when closed instead of quitting, keeping
+  // the app running in the background. Windows/Linux only; on macOS the window
+  // close already keeps the app alive in the Dock (native equivalent).
+  minimizeToTrayOnClose: boolean
+  // Internal: whether the one-time "still running in the tray" hint has been
+  // shown. Not exposed in the Settings UI.
+  hasSeenTrayHint: boolean
   // Multi-agent council planning configuration.
   council: CouncilConfig
 }
