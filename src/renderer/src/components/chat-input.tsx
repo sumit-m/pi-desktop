@@ -359,7 +359,7 @@ export function ChatInput(): React.JSX.Element {
               }
             }}
             disabled={isDisabled || isStreaming}
-            className="flex shrink-0 items-center justify-center py-3 pr-1 text-neutral-500 hover:text-neutral-300 transition-colors disabled:opacity-50"
+            className="flex shrink-0 items-center justify-center py-3 pl-3 pr-1 text-neutral-500 hover:text-neutral-300 transition-colors disabled:opacity-50"
             title="Plan with Council"
             aria-label="Plan with Council"
           >
@@ -379,7 +379,7 @@ export function ChatInput(): React.JSX.Element {
           }
           disabled={isDisabled}
           rows={1}
-          className="font-chat max-h-48 min-h-[24px] flex-1 resize-none bg-transparent py-3 pl-4 text-sm text-neutral-200 placeholder:text-neutral-600 outline-none disabled:opacity-50"
+          className={`font-chat max-h-48 min-h-[24px] flex-1 resize-none bg-transparent py-3 text-sm text-neutral-200 placeholder:text-neutral-600 outline-none disabled:opacity-50 ${councilEnabled ? 'pl-1' : 'pl-4'}`}
           onInput={(e) => {
             const target = e.currentTarget
             target.style.height = 'auto'
