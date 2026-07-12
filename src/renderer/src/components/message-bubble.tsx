@@ -211,7 +211,7 @@ function UserMessage({
             ref={editRef}
             value={editContent}
             onChange={(e) => onEditContentChange(e.target.value)}
-            className="font-chat w-full rounded-2xl rounded-br-md bg-[#323232] px-4 py-2.5 text-sm text-[#d7d7d7] resize-none min-h-[40px] max-h-48 outline-none"
+            className="font-chat w-full rounded-2xl rounded-br-md bg-neutral-800 px-4 py-2.5 text-sm text-neutral-200 resize-none min-h-[40px] max-h-48 outline-none"
             rows={1}
             onInput={(e) => {
               const t = e.currentTarget
@@ -243,7 +243,7 @@ function UserMessage({
   return (
     <div className="group mb-4 flex justify-end animate-fade-in">
       <div className="relative max-w-[80%]">
-        <div className="rounded-2xl rounded-br-md bg-[#323232] px-4 py-2.5 text-sm text-[#d7d7d7]">
+        <div className="rounded-2xl rounded-br-md bg-neutral-800 px-4 py-2.5 text-sm text-neutral-200">
           {message.attachments && message.attachments.length > 0 && (
             <div className={clsx('flex flex-wrap gap-2', message.content && 'mb-2')}>
               {message.attachments.map((attachment, index) => (
@@ -514,9 +514,9 @@ function AssistantMessage({
               under the tool-call box and splitting a run of grouped tool badges.
               Only shown when there's real response text — a tool-only message's
               content is just whitespace/newlines, which is truthy but has nothing
-              to copy/export. Always visible when shown. */}
+              to copy/export. Shown on hover only, matching the user-message actions. */}
           {message.content.trim() && (
-            <div className="mt-2 flex items-center gap-0.5">
+            <div className="mt-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
               <ActionButton
                 icon={copied ? <Check size={11} /> : <Copy size={11} />}
                 onClick={onCopy}
