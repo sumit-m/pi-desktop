@@ -229,7 +229,7 @@ export function Sidebar(): React.JSX.Element {
       </div>
 
       {/* Navigation */}
-      <nav className="px-2 py-1">
+      <nav className="space-y-0.5 px-2 py-1">
         <SidebarItem
           icon={<Home size={14} />}
           label="Home"
