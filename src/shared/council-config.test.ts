@@ -98,7 +98,8 @@ import {
   buildConsensusPrompt,
   buildDebatePrompt,
   buildConsultantCommand,
-  buildRevisionPrompt,
+  buildArbiterRevisionPrompt,
+  buildImplementationPrompt,
   parseClaudeStreamLine,
   parseCodexStreamLine,
   parsePiStreamLine,
@@ -153,11 +154,21 @@ test('consensus prompt excludes non-contributed plans', () => {
   assert.ok(!p.includes('timed-out'))
 })
 
-test('revision prompt embeds feedback and forbids implementing yet', () => {
-  const p = buildRevisionPrompt('Use Postgres instead of SQLite')
+test('arbiter revision prompt embeds request, prior plan, and feedback; forbids implementing', () => {
+  const p = buildArbiterRevisionPrompt('Original request', 'PRIOR PLAN TEXT', 'Use Postgres instead of SQLite')
+  assert.ok(p.includes('Original request'))
+  assert.ok(p.includes('PRIOR PLAN TEXT'))
   assert.ok(p.includes('Use Postgres instead of SQLite'))
   assert.ok(/revise/i.test(p))
   assert.ok(/do not (implement|build|write)/i.test(p))
+})
+
+test('implementation prompt embeds the approved plan and asks to implement', () => {
+  const p = buildImplementationPrompt('APPROVED PLAN BODY')
+  assert.ok(p.includes('APPROVED PLAN BODY'))
+  assert.ok(/implement/i.test(p))
+  // The vetted plan is all that crosses over — no reference to consultant output.
+  assert.ok(/approved/i.test(p))
 })
 
 test('debate prompt shows other plans and asks for a revision', () => {

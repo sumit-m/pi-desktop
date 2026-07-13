@@ -3,6 +3,8 @@ import { StringDecoder } from 'string_decoder'
 import type { CouncilAgentId, ConsensusMode, ConsultantResult } from '../shared/council-config'
 import {
   buildConsultantPrompt,
+  buildConsensusPrompt,
+  buildArbiterRevisionPrompt,
   buildDebatePrompt,
   buildConsultantCommand,
   parseClaudeStreamLine,
@@ -90,6 +92,41 @@ export async function runConsultants(
     }),
   )
   return round2
+}
+
+/**
+ * Structured input for the arbiter step. `merge` combines contributed plans;
+ * `revise` reworks an already-produced consensus plan given user feedback.
+ */
+export type ArbiterRequest =
+  | { kind: 'merge'; request: string; results: ConsultantResult[] }
+  | { kind: 'revise'; request: string; plan: string; feedback: string }
+
+export interface ArbiterDeps {
+  spawnConsultant: SpawnConsultant
+  /** Notified with live output chunks from the arbiter, for streaming to the UI. */
+  onProgress?: ConsultantChunkHandler
+}
+
+/**
+ * Run the arbiter (Pi) as an isolated, read-only subprocess to merge or revise
+ * the consensus plan. It runs read-only (via buildConsultantCommand('pi', …),
+ * which excludes edit/write tools) precisely because consultant plans are
+ * untrusted input: a poisoned plan cannot drive tool use here. Only the returned
+ * plan text is later handed to the writable implementation session.
+ */
+export async function runArbiter(
+  input: ArbiterRequest,
+  cwd: string,
+  timeoutSeconds: number,
+  deps: ArbiterDeps,
+): Promise<SpawnOutcome> {
+  const prompt =
+    input.kind === 'merge'
+      ? buildConsensusPrompt(input.request, input.results)
+      : buildArbiterRevisionPrompt(input.request, input.plan, input.feedback)
+  const timeoutMs = timeoutSeconds * MS_PER_SECOND
+  return deps.spawnConsultant('pi', prompt, cwd, timeoutMs, deps.onProgress)
 }
 
 /** Default spawn: run the consultant CLI, stream output, enforce timeout. */

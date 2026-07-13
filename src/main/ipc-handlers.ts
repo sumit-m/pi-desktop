@@ -30,15 +30,16 @@ import type {
   ModelsReadResult,
   CouncilRunResult,
   CouncilDetectResult,
+  CouncilArbiterResult,
   ActivityStatsResult,
 } from '../shared/ipc-contracts'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 import { COUNCIL_AGENT_IDS, clampTimeoutSeconds } from '../shared/council-config'
 import { DEFAULT_SETTINGS } from '../shared/default-settings'
-import type { CouncilAgentId, ConsensusMode } from '../shared/council-config'
+import type { CouncilAgentId, ConsensusMode, ConsultantResult } from '../shared/council-config'
 import { detectAgents } from './agent-detection'
 import { readAttachment } from './attachment-reader'
-import { runConsultants, defaultSpawnConsultant } from './council-manager'
+import { runConsultants, runArbiter, defaultSpawnConsultant, type ArbiterRequest } from './council-manager'
 import { fetchPackageCatalog } from './package-catalog'
 import { applyRunOnStartup } from './startup-launch'
 import { setTrayEnabled } from './tray-manager'
@@ -172,6 +173,22 @@ function applyResumePreference(options: PiStartOptions, settings: AppSettings): 
     return { ...options, continueSession: true }
   }
   return options
+}
+
+/**
+ * Resolve the working directory for council runs: the active workspace, never
+ * the renderer's input, so agents plan against the real project tree. Falls back
+ * to the home directory if the workspace path is inaccessible.
+ */
+async function resolveCouncilCwd(workspaceManager: WorkspaceManager): Promise<string> {
+  const activeWs = workspaceManager.getActiveWorkspace()
+  if (!activeWs) throw new Error('No active workspace')
+  try {
+    await access(activeWs.path)
+    return activeWs.path
+  } catch {
+    return process.env.HOME ?? process.env.USERPROFILE ?? process.cwd()
+  }
 }
 
 function applyPermissionModeToStartOptions(
@@ -821,14 +838,7 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
 
       // The working directory is the active workspace, never the renderer's
       // input — consultants must plan against the real project tree.
-      const activeWs = workspaceManager.getActiveWorkspace()
-      if (!activeWs) throw new Error('No active workspace')
-      let cwd = activeWs.path
-      try {
-        await access(cwd)
-      } catch {
-        cwd = process.env.HOME ?? process.env.USERPROFILE ?? process.cwd()
-      }
+      const cwd = await resolveCouncilCwd(workspaceManager)
 
       const results = await runConsultants(
         { request: payload.request, members, cwd, timeoutSeconds, consensusMode },
@@ -838,6 +848,54 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
         },
       )
       return { results }
+    },
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.COUNCIL_ARBITER,
+    async (_event, payload: unknown): Promise<CouncilArbiterResult> => {
+      if (!isObject(payload)) throw new Error('Council arbiter payload must be an object')
+      if (!isString(payload.request) || payload.request.trim().length === 0) {
+        throw new Error('Council arbiter request must be a non-empty string')
+      }
+      const timeoutSeconds = clampTimeoutSeconds(Number(payload.timeoutSeconds))
+
+      let input: ArbiterRequest
+      if (payload.kind === 'merge') {
+        if (!Array.isArray(payload.results)) {
+          throw new Error('Council arbiter merge requires a results array')
+        }
+        input = {
+          kind: 'merge',
+          request: payload.request,
+          results: payload.results as ConsultantResult[],
+        }
+      } else if (payload.kind === 'revise') {
+        if (!isString(payload.plan) || payload.plan.trim().length === 0) {
+          throw new Error('Council arbiter revise requires a non-empty plan')
+        }
+        if (!isString(payload.feedback) || payload.feedback.trim().length === 0) {
+          throw new Error('Council arbiter revise requires non-empty feedback')
+        }
+        input = {
+          kind: 'revise',
+          request: payload.request,
+          plan: payload.plan,
+          feedback: payload.feedback,
+        }
+      } else {
+        throw new Error('Council arbiter kind must be "merge" or "revise"')
+      }
+
+      const cwd = await resolveCouncilCwd(workspaceManager)
+      const outcome = await runArbiter(input, cwd, timeoutSeconds, {
+        spawnConsultant: defaultSpawnConsultant,
+        onProgress: (chunk) => broadcast(IPC_CHANNELS.EVENT_COUNCIL_PROGRESS, { id: 'pi', chunk }),
+      })
+      if (!outcome.ok) {
+        throw new Error(outcome.timedOut ? 'Arbiter timed out' : outcome.error ?? 'Arbiter failed')
+      }
+      return { plan: outcome.output.trim() }
     },
   )
 

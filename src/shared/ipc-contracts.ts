@@ -101,6 +101,7 @@ export const IPC_CHANNELS = {
   // Council planning
   COUNCIL_DETECT: 'council:detect',
   COUNCIL_RUN_CONSULTANTS: 'council:run-consultants',
+  COUNCIL_ARBITER: 'council:arbiter',
 
   // File operations
   FILE_TREE: 'file:tree',
@@ -552,6 +553,21 @@ export interface CouncilRunRequest {
 /** Result of COUNCIL_RUN_CONSULTANTS. */
 export interface CouncilRunResult {
   results: ConsultantResultType[]
+}
+
+/**
+ * Request payload for COUNCIL_ARBITER. Pi merges (`merge`) or revises (`revise`)
+ * the consensus plan in an isolated read-only subprocess. As with
+ * COUNCIL_RUN_CONSULTANTS, the working directory is resolved from the active
+ * workspace in the main process, never from the renderer.
+ */
+export type CouncilArbiterRequest =
+  | { kind: 'merge'; request: string; results: ConsultantResultType[]; timeoutSeconds: number }
+  | { kind: 'revise'; request: string; plan: string; feedback: string; timeoutSeconds: number }
+
+/** Result of COUNCIL_ARBITER: the merged or revised consensus plan text. */
+export interface CouncilArbiterResult {
+  plan: string
 }
 
 /**

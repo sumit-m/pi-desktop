@@ -9,8 +9,7 @@ import { validateModelsConfig, mergeModelsConfig, type ModelsConfig } from '../.
 import {
   resolveActiveMembers,
   hasQuorum,
-  buildConsensusPrompt,
-  buildRevisionPrompt,
+  buildImplementationPrompt,
   type CouncilAgentId,
   type ConsultantResult,
 } from '../../shared/council-config'
@@ -43,6 +42,7 @@ import type {
   NoteUpdate,
   UpdateCheckResult,
   PromptImage,
+  CouncilArbiterRequest,
 } from '../../shared/ipc-contracts'
 
 export type { DisplayAttachment, DisplayMessage } from './message-parsing'
@@ -76,6 +76,10 @@ export interface CouncilRunState {
   // Epoch ms when the consulting phase started (drives the elapsed indicator).
   startedAt?: number
   reason?: string
+  // The arbiter's consensus plan text: streamed live during 'merging', then the
+  // final plan shown at 'awaiting-approval'. Produced by an isolated read-only
+  // Pi subprocess, so untrusted consultant output never reaches the live session.
+  consensus?: string
 }
 
 // ─── Confirmation Dialog ─────────────────────────────────────────────────────
@@ -384,6 +388,42 @@ function closeMostRecentRunning(
 
 // ─── Store ───────────────────────────────────────────────────────────────────
 
+type CouncilStoreGet = () => AppState & AppActions
+type CouncilStoreSet = (partial: Partial<AppState & AppActions>) => void
+
+interface ArbiterStepBase {
+  request: string
+  results: ConsultantResult[]
+}
+
+/**
+ * Drive one arbiter round (merge or revise) through the isolated read-only Pi
+ * subprocess, streaming its output live into councilRun.consensus. Returns the
+ * final plan text, or an error string if the arbiter failed. Callers own the
+ * resulting phase transition.
+ */
+async function runArbiterStep(
+  payload: CouncilArbiterRequest,
+  base: ArbiterStepBase,
+  get: CouncilStoreGet,
+  set: CouncilStoreSet,
+): Promise<{ plan?: string; error?: string }> {
+  set({ councilRun: { phase: 'merging', request: base.request, results: base.results, consensus: '' } })
+  const unsubscribe = window.piDesktop.council.onProgress(({ chunk }) => {
+    const run = get().councilRun
+    if (!run || run.phase !== 'merging') return
+    set({ councilRun: { ...run, consensus: (run.consensus ?? '') + chunk } })
+  })
+  try {
+    const { plan } = await window.piDesktop.council.arbiter(payload)
+    return { plan }
+  } catch (err) {
+    return { error: `Arbiter failed: ${err instanceof Error ? err.message : String(err)}` }
+  } finally {
+    unsubscribe()
+  }
+}
+
 export const useAppStore = create<AppState & AppActions>((set, get) => ({
   // ─── Initial State ────────────────────────────────────────────────────
 
@@ -668,24 +708,50 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
       return
     }
 
-    set({ councilRun: { phase: 'merging', request, results } })
-    const consensusPrompt = buildConsensusPrompt(request, results)
-    await get().sendPrompt(consensusPrompt)
-    set({ councilRun: { phase: 'awaiting-approval', request, results } })
+    // The arbiter runs in an isolated read-only Pi subprocess. Consultant plans
+    // are untrusted input, so they are never fed to the live (writable) session —
+    // only the vetted consensus plan is, and only after the user approves it.
+    const merged = await runArbiterStep(
+      { kind: 'merge', request, results, timeoutSeconds: config.timeoutSeconds },
+      { request, results },
+      get,
+      set,
+    )
+    if (merged.error) {
+      set({ councilRun: { phase: 'refused', request, results, reason: merged.error } })
+      return
+    }
+    set({ councilRun: { phase: 'awaiting-approval', request, results, consensus: merged.plan } })
   },
 
   approveCouncilPlan: async () => {
     const run = get().councilRun
-    if (!run || run.phase !== 'awaiting-approval') return
+    if (!run || run.phase !== 'awaiting-approval' || !run.consensus?.trim()) return
+    const plan = run.consensus
     set({ councilRun: null })
-    await get().sendFollowUp('Approved. Implement the consensus plan above now.')
+    // Only the approved plan crosses into the writable session — never raw
+    // consultant output — so it cannot drive tools before this approval gate.
+    await get().sendPrompt(buildImplementationPrompt(plan))
   },
 
   reviseCouncilPlan: async (feedback) => {
     const run = get().councilRun
-    if (!run || run.phase !== 'awaiting-approval' || !feedback.trim()) return
-    // Pi revises the consensus plan in-place; the run stays at the approval gate.
-    await get().sendPrompt(buildRevisionPrompt(feedback))
+    if (!run || run.phase !== 'awaiting-approval' || !feedback.trim() || !run.consensus) return
+    const { request, results, consensus } = run
+    const config = get().settings?.council
+    if (!config) return
+    const revised = await runArbiterStep(
+      { kind: 'revise', request, plan: consensus, feedback, timeoutSeconds: config.timeoutSeconds },
+      { request, results },
+      get,
+      set,
+    )
+    if (revised.error) {
+      // Keep the previous plan at the approval gate and surface the failure.
+      set({ councilRun: { phase: 'awaiting-approval', request, results, consensus, reason: revised.error } })
+      return
+    }
+    set({ councilRun: { phase: 'awaiting-approval', request, results, consensus: revised.plan } })
   },
 
   cancelCouncil: () => set({ councilRun: null }),

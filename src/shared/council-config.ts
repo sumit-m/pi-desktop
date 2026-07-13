@@ -139,15 +139,45 @@ export function buildConsensusPrompt(request: string, results: ConsultantResult[
   ].join('\n')
 }
 
-/** Prompt to revise the consensus plan based on the user's feedback. */
-export function buildRevisionPrompt(feedback: string): string {
+/**
+ * Prompt to revise an already-produced consensus plan given user feedback.
+ * The arbiter runs as a stateless, read-only subprocess with no memory of the
+ * previous turn, so the prior plan is embedded explicitly rather than referenced
+ * as "the plan above".
+ */
+export function buildArbiterRevisionPrompt(
+  request: string,
+  previousPlan: string,
+  feedback: string,
+): string {
   return [
-    'The user reviewed the consensus plan above and requested changes:',
+    'You are the arbiter and the builder. You previously produced the consensus plan below.',
+    'The user reviewed it and requested changes. Revise the plan to address the feedback.',
+    'Output ONLY the revised consensus plan. DO NOT implement, build, or write any files yet — wait for approval.',
     '',
+    'REQUEST:',
+    request,
+    '',
+    'CURRENT CONSENSUS PLAN:',
+    previousPlan,
+    '',
+    'REQUESTED CHANGES:',
     feedback,
+  ].join('\n')
+}
+
+/**
+ * Prompt sent to the live (writable) session once the user approves a consensus
+ * plan. Only the vetted plan text crosses into the implementation session — raw
+ * consultant output never does — so untrusted planning text cannot drive tools
+ * in an auto-approving session before the human approval gate.
+ */
+export function buildImplementationPrompt(plan: string): string {
+  return [
+    'Implement the following plan. It was reviewed and approved by the user.',
     '',
-    'Revise the consensus plan to address this feedback. Output ONLY the revised plan.',
-    'DO NOT implement, build, or write any files yet — wait for approval.',
+    'APPROVED PLAN:',
+    plan,
   ].join('\n')
 }
 

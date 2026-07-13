@@ -28,6 +28,8 @@ import type {
   CouncilDetectResult,
   CouncilRunRequest,
   CouncilRunResult,
+  CouncilArbiterRequest,
+  CouncilArbiterResult,
   CouncilProgressEvent,
   AttachmentReadResult,
   OpenDialogOptions,
@@ -131,6 +133,7 @@ interface PiDesktopAPI {
   council: {
     detect(): Promise<CouncilDetectResult>
     runConsultants(payload: CouncilRunRequest): Promise<CouncilRunResult>
+    arbiter(payload: CouncilArbiterRequest): Promise<CouncilArbiterResult>
     onProgress(callback: (event: CouncilProgressEvent) => void): () => void
   }
 
@@ -305,6 +308,7 @@ const api: PiDesktopAPI = {
   council: {
     detect: () => ipcRenderer.invoke(IPC_CHANNELS.COUNCIL_DETECT),
     runConsultants: (payload) => ipcRenderer.invoke(IPC_CHANNELS.COUNCIL_RUN_CONSULTANTS, payload),
+    arbiter: (payload) => ipcRenderer.invoke(IPC_CHANNELS.COUNCIL_ARBITER, payload),
     onProgress: (callback) => {
       const handler = (_event: Electron.IpcRendererEvent, data: CouncilProgressEvent) => callback(data)
       ipcRenderer.on(IPC_CHANNELS.EVENT_COUNCIL_PROGRESS, handler)

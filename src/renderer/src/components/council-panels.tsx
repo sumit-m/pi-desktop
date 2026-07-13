@@ -119,6 +119,24 @@ export function CouncilPanels(): React.JSX.Element | null {
         </div>
       )}
 
+      {/* Consensus plan from the read-only arbiter: streamed while merging, then */}
+      {/* held here for review. Stays visible even when the consultant cards are  */}
+      {/* collapsed, and is never sent to the live session until the user         */}
+      {/* approves it below. */}
+      {(run.phase === 'merging' || awaiting) && (
+        <div className="mt-2 rounded border border-neutral-800 bg-neutral-950 p-2">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-sm text-neutral-200">Consensus plan</span>
+            <span className="text-xs text-blue-400">
+              {run.phase === 'merging' ? (run.consensus ? 'merging…' : 'working…') : 'ready for review'}
+            </span>
+          </div>
+          <pre className="max-h-80 overflow-auto whitespace-pre-wrap text-xs text-neutral-300">
+            {run.consensus ?? ''}
+          </pre>
+        </div>
+      )}
+
       {/* Approval controls stay visible even when the cards are collapsed. */}
       {awaiting && (
         <div className="mt-3 space-y-2">
