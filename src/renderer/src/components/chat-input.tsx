@@ -533,7 +533,7 @@ export function ChatInput(): React.JSX.Element {
           {isStreaming ? (
             <span className="text-yellow-500 animate-pulse">Streaming...</span>
           ) : (
-            'Shift+Enter for newline'
+            'Shift+Enter for Newline'
           )}
         </span>
       </div>
