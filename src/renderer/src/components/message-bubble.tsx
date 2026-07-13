@@ -18,6 +18,7 @@ import { LineNumberedCode } from './line-numbered-code'
 import { MarkdownRenderer } from './markdown-renderer'
 import { CopyButton } from './copy-button'
 import { useContextMenu, buildMessageContextMenu } from './context-menu'
+import { RelativeTime } from '../utils/relative-time'
 import { clsx } from 'clsx'
 import {
   Copy,
@@ -210,7 +211,7 @@ function UserMessage({
             ref={editRef}
             value={editContent}
             onChange={(e) => onEditContentChange(e.target.value)}
-            className="font-chat w-full rounded-2xl rounded-br-md bg-[#323232] px-4 py-2.5 text-sm text-[#d7d7d7] resize-none min-h-[40px] max-h-48 outline-none"
+            className="font-chat w-full rounded-2xl rounded-br-md bg-neutral-800 px-4 py-2.5 text-sm text-neutral-200 resize-none min-h-[40px] max-h-48 outline-none"
             rows={1}
             onInput={(e) => {
               const t = e.currentTarget
@@ -242,7 +243,7 @@ function UserMessage({
   return (
     <div className="group mb-4 flex justify-end animate-fade-in">
       <div className="relative max-w-[80%]">
-        <div className="rounded-2xl rounded-br-md bg-[#323232] px-4 py-2.5 text-sm text-[#d7d7d7]">
+        <div className="rounded-2xl rounded-br-md bg-neutral-800 px-4 py-2.5 text-sm text-neutral-200">
           {message.attachments && message.attachments.length > 0 && (
             <div className={clsx('flex flex-wrap gap-2', message.content && 'mb-2')}>
               {message.attachments.map((attachment, index) => (
@@ -324,56 +325,90 @@ function AssistantMessage({
   // in and repeating it per row would just be noise.
   const showModelHeader = !!message.model && !hideModelHeader
 
-  // Standalone tool call (attributed, not inside a group): render it like a group
-  // reads — the Bot avatar carries the provider · model header on its own row, and
-  // each tool-call box sits on its own row behind the operation icon. (Grouped
-  // rows have no header and fall through to the single-avatar layout below; the
-  // group already shows one shared Bot header above them.)
-  if (ToolIcon && showModelHeader) {
+  // A grouped thinking-only turn (thinking, no text, no tool calls). It sits
+  // between the call/result rows of a serial run; with the default mb-4 rhythm it
+  // ends up 16px from its neighbours, which reads as too airy for a bare
+  // "Thinking" toggle. Tighten it to 8px on both sides: pull it up 8px against the
+  // previous row's mb-4 (-mt-2) and give it an 8px bottom (mb-2) instead of mb-4.
+  const isGroupedPureThinking =
+    hideModelHeader &&
+    !!message.thinking &&
+    thinkingEnabled &&
+    message.content.trim().length === 0 &&
+    (message.toolCalls?.length ?? 0) === 0
+
+  // A pure-tool turn (body is only tool calls): render every call on its own row
+  // behind its own operation icon, so each call — including parallel calls in a
+  // single turn — is labelled with the right glyph. Standalone (attributed) turns
+  // also show a Bot avatar + provider·model header; grouped turns omit the header
+  // (the group's shared header stands in) but keep the same per-row-icon layout so
+  // a single-call and a multi-call turn align identically.
+  if (ToolIcon) {
+    const showThinkingBlock = !!message.thinking && thinkingEnabled
+    const hasHeaderArea = showModelHeader || showThinkingBlock
+    // The collapsible thinking block, reused in the attributed (header) layout and
+    // the grouped (padded-block) layout below.
+    const thinkingBlock = showThinkingBlock ? (
+      <div className="thinking-hover">
+        <div className="flex h-7 items-center gap-1">
+          <button
+            onClick={onToggleThinking}
+            className="flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-400 transition-colors"
+          >
+            <Brain size={12} />
+            {showThinking ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            Thinking
+          </button>
+          <CopyButton text={message.thinking!} className="thinking-copy-btn" />
+        </div>
+        {showThinking && (
+          <div className="markdown-body font-sans italic text-sm text-neutral-400">
+            <MarkdownRenderer content={message.thinking!} />
+          </div>
+        )}
+      </div>
+    ) : null
     return (
       <div className="group mb-4 animate-fade-in">
-        {/* Header row: Bot avatar + provider · model, matching a prose turn. */}
-        <div className="flex items-start gap-3">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-800">
-            <Bot size={14} className="text-neutral-400" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex h-7 items-center gap-2 text-sm text-neutral-500">
-              <span>{message.provider}</span>
-              <span className="text-neutral-700">·</span>
-              <span>{modelDisplayName(message.model!, customModels)}</span>
-              {message.cost !== undefined && (
-                <>
-                  <span className="text-neutral-700">·</span>
-                  <span>${message.cost.toFixed(4)}</span>
-                </>
-              )}
+        {/* Attributed (standalone) turn: Bot avatar + provider·model header, with
+            the thinking block tucked under it. */}
+        {showModelHeader && (
+          <div className="flex items-start gap-3">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-800">
+              <Bot size={14} className="text-neutral-400" />
             </div>
-            {message.thinking && thinkingEnabled && (
-              <div className="thinking-hover mt-2">
-                <div className="flex h-7 items-center gap-1">
-                  <button
-                    onClick={onToggleThinking}
-                    className="flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-400 transition-colors"
-                  >
-                    <Brain size={12} />
-                    {showThinking ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                    Thinking
-                  </button>
-                  <CopyButton text={message.thinking} className="thinking-copy-btn" />
-                </div>
-                {showThinking && (
-                  <div className="markdown-body font-sans italic text-sm text-neutral-400">
-                    <MarkdownRenderer content={message.thinking} />
-                  </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex h-7 items-center gap-2 text-sm text-neutral-500">
+                <span>{message.provider}</span>
+                <span className="text-neutral-700">·</span>
+                <span>{modelDisplayName(message.model!, customModels)}</span>
+                {message.cost !== undefined && (
+                  <>
+                    <span className="text-neutral-700">·</span>
+                    <span>${message.cost.toFixed(4)}</span>
+                  </>
                 )}
+                <span className="text-neutral-700">·</span>
+                <RelativeTime timestamp={message.timestamp} />
               </div>
-            )}
+              {thinkingBlock && <div className="mt-2">{thinkingBlock}</div>}
+            </div>
           </div>
-        </div>
-        {/* One row per tool-call box, each behind its own operation icon. mt-2
-            sets the header→first-box gap; space-y-1 the box-to-box gap. */}
-        <div className="mt-2 space-y-1">
+        )}
+        {/* Grouped turn: no header (the group's shared header stands in). Render the
+            thinking block as a plain padded block — pl-10 aligns it with the tool
+            badges (w-7 icon + gap-3), and controlling its own margins directly
+            (-mt-2 above vs the group's mt-4, the tool row's mt-2 below) keeps it
+            evenly 8px on both sides whether collapsed or expanded. Nesting it in the
+            icon-row flex (as the tool rows do) let the 28px icon spacer floor the
+            row height, so the gap below collapsed once the expanded text outgrew it. */}
+        {!showModelHeader && thinkingBlock && (
+          <div className="-mt-2 pl-10">{thinkingBlock}</div>
+        )}
+        {/* One row per tool-call box, each behind its own operation icon. mt-2 sets
+            the gap under the header/thinking area; space-y-4 keeps the box-to-box gap
+            equal to the mb-4 rhythm between separate call/result rows. */}
+        <div className={clsx('space-y-4', hasHeaderArea && 'mt-2')}>
           {message.toolCalls!.map((tc) => {
             const RowIcon = toolCallIconFor(tc.name)
             return (
@@ -396,21 +431,13 @@ function AssistantMessage({
   }
 
   return (
-    <div className="group mb-4 animate-fade-in">
+    <div className={clsx('group animate-fade-in', isGroupedPureThinking ? '-mt-2 mb-2' : 'mb-4')}>
       <div className="flex items-start gap-3">
-        {/* Avatar — a grouped tool row shows its operation icon; otherwise the Bot
-            avatar, except inside a tool group (the group shows one shared header
-            above) where a prose/thinking turn keeps an empty spacer so its body
-            stays aligned with the icon-avatared rows. */}
-        {ToolIcon ? (
-          // Center the icon on the tool-call box's header row (h-8 ≈ py-2 +
-          // text-xs) instead of top-aligning, so it lines up with the box text.
-          <div className="flex h-8 w-7 shrink-0 items-center justify-center">
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-800">
-              <ToolIcon size={14} className="text-neutral-500" />
-            </div>
-          </div>
-        ) : hideModelHeader ? (
+        {/* Avatar — the Bot avatar for a prose turn, except inside a tool group
+            (the group shows one shared header above) where it keeps an empty
+            spacer so its body stays aligned with the icon-avatared rows.
+            Pure-tool turns are handled earlier (each call gets its own icon). */}
+        {hideModelHeader ? (
           <div className="h-7 w-7 shrink-0" />
         ) : (
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-800">
@@ -432,12 +459,22 @@ function AssistantMessage({
                   <span>${message.cost.toFixed(4)}</span>
                 </>
               )}
+              <span className="text-neutral-700">·</span>
+              <RelativeTime timestamp={message.timestamp} />
             </div>
           )}
 
-          {/* Thinking block — gated by the Show Thinking setting */}
+          {/* Thinking block — gated by the Show Thinking setting. mb-2 only when a
+              body (text/tool calls) follows it; on a pure-thinking turn there's
+              nothing below, so the mb-2 would stack on the message's own mb-4 and
+              leave the block with a bigger gap below than above. */}
           {message.thinking && thinkingEnabled && (
-            <div className="thinking-hover mb-2">
+            <div
+              className={clsx(
+                'thinking-hover',
+                (message.content.trim().length > 0 || (message.toolCalls?.length ?? 0) > 0) && 'mb-2'
+              )}
+            >
               <div className="flex h-7 items-center gap-1">
                 <button
                   onClick={onToggleThinking}
@@ -477,9 +514,9 @@ function AssistantMessage({
               under the tool-call box and splitting a run of grouped tool badges.
               Only shown when there's real response text — a tool-only message's
               content is just whitespace/newlines, which is truthy but has nothing
-              to copy/export. Always visible when shown. */}
+              to copy/export. Shown on hover only, matching the user-message actions. */}
           {message.content.trim() && (
-            <div className="mt-2 flex items-center gap-0.5">
+            <div className="mt-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
               <ActionButton
                 icon={copied ? <Check size={11} /> : <Copy size={11} />}
                 onClick={onCopy}
@@ -493,7 +530,10 @@ function AssistantMessage({
           {/* Tool calls */}
           {message.toolCalls && message.toolCalls.length > 0 && (
             <div className={clsx(
-              'space-y-1',
+              // space-y-4 so parallel calls in one turn (multiple badges here) keep
+              // the same 16px rhythm as separate call/result rows (each mb-4),
+              // rather than bunching up ~4px apart.
+              'space-y-4',
               // Pad the top only when something actually renders above the tool
               // box — a visible model header, a thinking block, or response text.
               // A grouped tool row has no header (showModelHeader is false), so it
@@ -797,6 +837,7 @@ function ToolGroupBubbleImpl({
     }
   }
   const showSharedHeader = modelKeys.size === 1 && sharedModel !== undefined
+  const groupTimestamp = messages[messages.length - 1]?.timestamp
 
   return (
     <div className="group mb-4 animate-fade-in">
@@ -812,6 +853,12 @@ function ToolGroupBubbleImpl({
               <span>{sharedProvider}</span>
               <span className="text-neutral-700">·</span>
               <span>{modelDisplayName(sharedModel as string, customModels)}</span>
+              {groupTimestamp !== undefined && (
+                <>
+                  <span className="text-neutral-700">·</span>
+                  <RelativeTime timestamp={groupTimestamp} />
+                </>
+              )}
             </div>
           )}
           <div
