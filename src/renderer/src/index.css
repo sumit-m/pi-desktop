@@ -22,14 +22,14 @@
    should highlight to the theme's card color on hover use this utility, which
    references the per-theme `--pi-highlight` token instead. */
 .pi-hover-highlight:hover {
-  background-color: var(--color-highlight);
+  background-color: var(--pi-highlight);
 }
 
 /* A stronger step (each theme's `bg-neutral-800`) for hover targets that sit
    ON a `bg-neutral-900` surface — e.g. the composer action buttons inside the
    input box, where the plain `--pi-highlight` (neutral-900) would be invisible. */
 .pi-hover-highlight-strong:hover {
-  background-color: var(--color-highlight-strong);
+  background-color: var(--pi-highlight-strong);
 }
 
 @theme {
@@ -274,7 +274,12 @@
   }
 
   .markdown-body code.chat-file-link:hover {
-    background-color: color-mix(in oklab, var(--color-primary), transparent 90%);
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .light .markdown-body code.chat-file-link:hover,
+  .breeze-light .markdown-body code.chat-file-link:hover {
+    background-color: rgba(0, 0, 0, 0.08);
   }
 
   .markdown-body pre {
@@ -426,16 +431,6 @@
     color: var(--cm-string);
     background: var(--color-success-bg);
   }
-}
-
-@layer components {
-  /* Chat center column: themable via tokens; defaults track the app background
-     so only themes that override --color-chat-column look different. */
-  .chat-center {
-    background-color: var(--color-chat-column);
-  }
-  .chat-center > .border-b { border-bottom-color: var(--color-chat-column-border); }
-  .chat-center > .border-t { border-top-color: var(--color-chat-column-border); }
 }
 
 /* ─── Nord Theme ─────────────────────────────────────────────────────────── */
