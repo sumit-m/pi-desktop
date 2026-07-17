@@ -33,12 +33,12 @@ export function LineNumberedCode({
         return (
           <div
             key={i}
-            className={clsx('flex', clickable && 'cursor-pointer hover:bg-neutral-800/40')}
+            className={clsx('flex', clickable && 'cursor-pointer hover:bg-surface-hover/40')}
             onClick={clickable ? onFirstLineClick : undefined}
             title={clickable ? 'Collapse' : undefined}
           >
             <span
-              className="mr-3 shrink-0 select-none text-right text-neutral-600"
+              className="mr-3 shrink-0 select-none text-right text-faint"
               style={{ minWidth: gutter }}
             >
               {i + 1}
