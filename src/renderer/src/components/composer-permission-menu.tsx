@@ -55,7 +55,7 @@ export function ComposerPermissionMenu({ value, onChange }: ComposerPermissionMe
         className={clsx(
           'flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors',
           isTrusted
-            ? 'bg-warning-bg text-warning hover:bg-warning-bg hover:text-warning'
+            ? 'bg-warning/15 text-warning hover:bg-warning/35'
             : 'pi-hover-highlight-strong text-secondary hover:text-primary'
         )}
         title={getPermissionModeDescription(mode).replace(/\.$/, '')}
