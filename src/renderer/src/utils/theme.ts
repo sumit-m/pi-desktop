@@ -1,39 +1,45 @@
-import type { AppSettings } from '../../../shared/ipc-contracts'
+import type { ThemeFile } from '../../../shared/theme/theme-file'
+import { resolveThemeVars } from '../../../shared/theme/resolve'
+import { BUILTIN_THEMES } from '../themes'
+import { applyThemeVars } from '../theme/engine'
 
-export const THEME_CLASSES = [
-  'dark',
-  'light',
-  'nord',
-  'gruvbox',
-  'breeze-dark',
-  'breeze-light',
-  'breeze-claudius',
+export interface RegisteredTheme { id: string; file: ThemeFile }
+
+/* Kept only so the legacy per-theme CSS keeps matching until the
+   legacy-removal task deletes both the CSS and this list. */
+const LEGACY_THEME_CLASSES = [
+  'dark', 'light', 'nord', 'gruvbox', 'breeze-dark', 'breeze-light', 'breeze-claudius',
 ] as const
 
-export type ThemeClass = (typeof THEME_CLASSES)[number]
+const registry = new Map<string, ThemeFile>(BUILTIN_THEMES.map((t) => [t.id, t.file]))
+let appliedVarKeys: string[] = []
 
-export const LIGHT_THEMES = new Set<string>(['light', 'breeze-light'])
+export function registerThemes(themes: ReadonlyArray<RegisteredTheme>): void {
+  for (const theme of themes) registry.set(theme.id, theme.file)
+}
 
-export function applyTheme(theme: AppSettings['theme']): void {
+export function getRegisteredThemes(): ReadonlyArray<RegisteredTheme> {
+  return [...registry.entries()].map(([id, file]) => ({ id, file }))
+}
+
+function systemThemeId(): string {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+export function applyTheme(themeId: string): void {
+  const id = themeId === 'system' ? systemThemeId() : themeId
+  const file = registry.get(id) ?? registry.get('dark')!
   const html = document.documentElement
-  html.classList.remove(...THEME_CLASSES)
-
-  if (theme === 'system') {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    html.classList.add(prefersDark ? 'dark' : 'light')
-    html.style.colorScheme = prefersDark ? 'dark' : 'light'
-  } else if (LIGHT_THEMES.has(theme)) {
-    html.classList.add(theme)
-    html.style.colorScheme = 'light'
-  } else {
-    // 'dark' | 'nord' | 'gruvbox' | 'breeze-dark' — all dark-based
-    html.classList.add(theme)
-    html.style.colorScheme = 'dark'
+  appliedVarKeys = applyThemeVars(html, resolveThemeVars(file), appliedVarKeys)
+  html.classList.toggle('light', file.kind === 'light')
+  html.style.colorScheme = file.kind
+  for (const cls of LEGACY_THEME_CLASSES) {
+    if (cls !== 'light') html.classList.toggle(cls, cls === id)
   }
 }
 
-export function isLightTheme(theme: AppSettings['theme'] | null | undefined): boolean {
-  if (!theme) return false
-  if (theme === 'system') return !window.matchMedia('(prefers-color-scheme: dark)').matches
-  return LIGHT_THEMES.has(theme)
+export function isLightTheme(themeId: string | null | undefined): boolean {
+  if (!themeId) return false
+  const id = themeId === 'system' ? systemThemeId() : themeId
+  return registry.get(id)?.kind === 'light'
 }

@@ -124,7 +124,7 @@ export function SettingsPanel(): React.JSX.Element {
   const handleSave = async () => {
     const updated: Partial<AppSettings> = {
       piExecutablePath: piPath,
-      theme: theme as AppSettings['theme'],
+      theme,
       fontSize,
       terminalFontSize,
       codeEditorFontSize,
@@ -238,7 +238,7 @@ export function SettingsPanel(): React.JSX.Element {
               <select
                 value={theme}
                 onChange={(e) => {
-                  const newTheme = e.target.value as AppSettings['theme']
+                  const newTheme = e.target.value
                   setTheme(newTheme)
                   applyTheme(newTheme)
                   setSettingsDraft({ theme: newTheme })
