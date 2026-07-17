@@ -698,8 +698,13 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
       filters: [THEME_FILE_FILTER],
     })
     if (result.canceled || !result.filePath) return { ok: false }
-    await writeFile(result.filePath, JSON.stringify(theme, null, 2))
-    return { ok: true }
+    try {
+      await writeFile(result.filePath, JSON.stringify(theme, null, 2))
+      return { ok: true }
+    } catch (error) {
+      console.error('Failed to write exported theme file:', error)
+      return { ok: false }
+    }
   })
 
   ipcMain.handle(IPC_CHANNELS.THEMES_IMPORT, async (): Promise<ThemeImportResult> => {
