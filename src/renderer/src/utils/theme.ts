@@ -5,12 +5,6 @@ import { applyThemeVars } from '../theme/engine'
 
 export interface RegisteredTheme { id: string; file: ThemeFile }
 
-/* Kept only so the legacy per-theme CSS keeps matching until the
-   legacy-removal task deletes both the CSS and this list. */
-const LEGACY_THEME_CLASSES = [
-  'dark', 'light', 'nord', 'gruvbox', 'breeze-dark', 'breeze-light', 'breeze-claudius',
-] as const
-
 const registry = new Map<string, ThemeFile>(BUILTIN_THEMES.map((t) => [t.id, t.file]))
 let appliedVarKeys: string[] = []
 
@@ -33,9 +27,6 @@ export function applyTheme(themeId: string): void {
   appliedVarKeys = applyThemeVars(html, resolveThemeVars(file), appliedVarKeys)
   html.classList.toggle('light', file.kind === 'light')
   html.style.colorScheme = file.kind
-  for (const cls of LEGACY_THEME_CLASSES) {
-    if (cls !== 'light') html.classList.toggle(cls, cls === id)
-  }
 }
 
 export function isLightTheme(themeId: string | null | undefined): boolean {
