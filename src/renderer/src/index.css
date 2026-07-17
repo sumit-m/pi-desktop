@@ -812,10 +812,9 @@
 
   /* Chat center column: custom background, distinct from the left sidebar,
      right side panel, and terminal (all siblings, so unaffected). The center
-     column's background now comes from this theme's --color-chat-column token
-     via the theme-agnostic .chat-center rule. The nested rule recolors the
-     input strip wrapper (.bg-neutral-950) to match. */
-  .breeze-claudius .chat-center .bg-neutral-950 { background-color: #1e1e1e !important; }
+     column's background comes from this theme's --color-chat-column token via
+     the theme-agnostic .chat-center rule; the input-strip wrapper inside it
+     carries the same bg-chat-column class, so it matches automatically. */
   /* Hide the toolbar bottom border and the input-area top border (direct
      children only, so message/tool cards keep their borders). */
   .breeze-claudius .chat-center > .border-b { border-bottom-color: transparent !important; }

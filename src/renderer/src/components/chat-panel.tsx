@@ -215,7 +215,7 @@ export function ChatPanel(): React.JSX.Element {
           </div>
 
           {/* Input area */}
-          <div className="border-t border-border bg-app">
+          <div className="border-t border-border bg-chat-column">
             <div className="mx-auto w-full max-w-5xl px-4">
               <CouncilPanels />
             </div>
