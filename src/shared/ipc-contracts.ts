@@ -138,6 +138,14 @@ export const IPC_CHANNELS = {
   NOTES_UPDATE: 'notes:update',
   NOTES_REMOVE: 'notes:remove',
 
+  // Themes (user-created theme storage)
+  THEMES_LIST: 'themes:list',
+  THEMES_SAVE: 'themes:save',
+  THEMES_DELETE: 'themes:delete',
+  THEMES_INSTALL_URL: 'themes:install-from-url',
+  THEMES_EXPORT: 'themes:export',
+  THEMES_IMPORT: 'themes:import',
+
   // Events (main → renderer)
   EVENT_PI: 'event:pi',
   EVENT_FILE_CHANGE: 'event:file-change',
@@ -751,6 +759,32 @@ export interface NoteInput {
 
 /** Mutable fields when updating a note. */
 export type NoteUpdate = Partial<NoteInput>
+
+// ─── Theme Types ────────────────────────────────────────────────────────────
+
+import type { ThemeFile } from './theme/theme-file'
+
+/** A user-created theme as stored on disk, keyed by its file-derived id. */
+export interface UserThemeRecord {
+  id: string
+  file: ThemeFile
+}
+
+/** Result of listing user themes; `warnings` reports files that failed validation. */
+export interface ThemesListResult {
+  themes: UserThemeRecord[]
+  warnings: string[]
+}
+
+/**
+ * Result of an operation that produces (or fails to produce) a saved theme:
+ * installing from a URL, or importing from a file. `canceled` distinguishes a
+ * user-initiated dialog cancellation from a genuine error.
+ */
+export type ThemeImportResult =
+  | { ok: true; theme: UserThemeRecord }
+  | { ok: false; error: string }
+  | { ok: false; canceled: true }
 
 // ─── Package Types ──────────────────────────────────────────────────────────
 
