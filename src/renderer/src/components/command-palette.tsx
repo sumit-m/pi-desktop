@@ -12,7 +12,7 @@ const BUILTIN_SOURCE = 'builtin'
 const SOURCE_BADGE: Record<string, string> = {
   skill: 'bg-special-bg text-special',
   prompt: 'bg-accent-bg text-accent-fg',
-  [BUILTIN_SOURCE]: 'bg-amber-900/40 text-amber-300',
+  [BUILTIN_SOURCE]: 'bg-warning-bg text-warning',
   extension: 'bg-success-bg text-success',
 }
 

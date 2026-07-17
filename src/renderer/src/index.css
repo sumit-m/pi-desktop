@@ -16,22 +16,6 @@
    plain `:hover` so hover states work in the desktop window as intended. */
 @custom-variant hover (&:hover);
 
-/* Theme-aware hover highlight. Each theme remaps the base `bg-neutral-900`
-   class (its "current session" card surface) but NOT the `hover:bg-neutral-900`
-   variant, so a fixed hover shade would ignore the active theme. Elements that
-   should highlight to the theme's card color on hover use this utility, which
-   references the per-theme `--pi-highlight` token instead. */
-.pi-hover-highlight:hover {
-  background-color: var(--pi-highlight);
-}
-
-/* A stronger step (each theme's `bg-neutral-800`) for hover targets that sit
-   ON a `bg-neutral-900` surface — e.g. the composer action buttons inside the
-   input box, where the plain `--pi-highlight` (neutral-900) would be invisible. */
-.pi-hover-highlight-strong:hover {
-  background-color: var(--pi-highlight-strong);
-}
-
 @theme {
   /* Semantic tokens — pi-theme/v1. Values here are the base dark defaults;
      the ThemeEngine overrides them on <html> at runtime. */
@@ -222,6 +206,14 @@
     font-family: 'JetBrains Mono Variable', 'JetBrains Mono', 'OpenMoji Color', ui-monospace, 'Cascadia Mono', Consolas, monospace;
   }
 
+  /* Chat center column: themable via tokens; defaults track the app background
+     so only themes that override --color-chat-column look different. */
+  .chat-center {
+    background-color: var(--color-chat-column);
+  }
+  .chat-center > .border-b { border-bottom-color: var(--color-chat-column-border); }
+  .chat-center > .border-t { border-top-color: var(--color-chat-column-border); }
+
   /* Reveal the thinking copy button on hover. Plain CSS avoids the nested-group
      ambiguity with the message-level `group` (Tailwind group-hover didn't fire). */
   .thinking-copy-btn {
@@ -237,7 +229,7 @@
     font-family: 'Inter Variable', 'OpenMoji Color', system-ui, sans-serif;
     font-size: 0.9375rem;
     line-height: 1.6;
-    color: var(--color-text-primary);
+    color: var(--color-primary);
   }
 
   .markdown-body p {
@@ -258,7 +250,7 @@
     font-weight: 600;
     margin-top: 1.25em;
     margin-bottom: 0.5em;
-    color: var(--color-text-primary);
+    color: var(--color-primary);
   }
 
   .markdown-body code {
@@ -276,12 +268,7 @@
   }
 
   .markdown-body code.chat-file-link:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-  }
-
-  .light .markdown-body code.chat-file-link:hover,
-  .breeze-light .markdown-body code.chat-file-link:hover {
-    background-color: rgba(0, 0, 0, 0.08);
+    background-color: color-mix(in oklab, var(--color-primary), transparent 90%);
   }
 
   .markdown-body pre {
@@ -296,7 +283,7 @@
     display: block;
     padding: 0.875em 1em;
     background: transparent;
-    color: var(--color-text-primary);
+    color: var(--color-primary);
     font-family: 'JetBrains Mono Variable', 'JetBrains Mono', 'OpenMoji Color', 'Fira Code', 'Cascadia Code', monospace;
     font-size: 0.75rem;
     line-height: 1.6;
@@ -316,7 +303,7 @@
     border-left: 3px solid var(--color-border);
     padding-left: 1em;
     margin: 0.75em 0;
-    color: var(--color-text-secondary);
+    color: var(--color-secondary);
   }
 
   .markdown-body a {
@@ -344,7 +331,7 @@
   }
 
   .markdown-body th {
-    background: var(--color-bg-tertiary);
+    background: var(--color-card);
     font-weight: 600;
   }
 
@@ -361,7 +348,7 @@
 
   .markdown-body strong {
     font-weight: 600;
-    color: var(--color-text-primary);
+    color: var(--color-primary);
   }
 }
 
@@ -824,9 +811,10 @@
   .breeze-claudius .markdown-body pre code { color: #cfcfc2 !important; }
 
   /* Chat center column: custom background, distinct from the left sidebar,
-     right side panel, and terminal (all siblings, so unaffected). The nested
-     rule recolors the input strip wrapper (.bg-neutral-950) to match. */
-  .breeze-claudius .chat-center { background-color: #1e1e1e; }
+     right side panel, and terminal (all siblings, so unaffected). The center
+     column's background now comes from this theme's --color-chat-column token
+     via the theme-agnostic .chat-center rule. The nested rule recolors the
+     input strip wrapper (.bg-neutral-950) to match. */
   .breeze-claudius .chat-center .bg-neutral-950 { background-color: #1e1e1e !important; }
   /* Hide the toolbar bottom border and the input-area top border (direct
      children only, so message/tool cards keep their borders). */

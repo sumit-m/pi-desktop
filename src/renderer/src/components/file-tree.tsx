@@ -131,8 +131,8 @@ export function FileTree(): React.JSX.Element {
     if (activeWorkspace && !pathExists) {
       return (
         <div className="flex flex-col items-center justify-center px-4 py-8 text-center text-dim">
-          <FolderOpen size={24} className="mb-2 text-amber-500/70" />
-          <p className="text-xs text-amber-400">Folder not found</p>
+          <FolderOpen size={24} className="mb-2 text-warning/70" />
+          <p className="text-xs text-warning">Folder not found</p>
           <p className="mt-1 break-all text-[11px] text-dim">{activeWorkspace.path}</p>
           <p className="mt-2 text-[11px] text-faint">
             The folder may have moved or been deleted. Right-click the workspace in the
@@ -528,7 +528,7 @@ export function FilePreview(): React.JSX.Element | null {
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden bg-[var(--color-bg-primary)]">
+    <div className="flex flex-1 flex-col overflow-hidden bg-[var(--color-app)]">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="flex items-center gap-2 min-w-0">

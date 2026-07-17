@@ -112,7 +112,7 @@ export function CustomModelsEditor(): React.JSX.Element {
 
   if (customModelsError) {
     return (
-      <div className="flex items-start gap-2 text-sm text-amber-400">
+      <div className="flex items-start gap-2 text-sm text-warning">
         <AlertTriangle size={16} className="mt-0.5 shrink-0" />
         <div>
           <p>Could not load models.json safely, so editing is disabled to avoid overwriting it.</p>

@@ -52,7 +52,7 @@ export function ImageViewer(): React.JSX.Element | null {
   if (!image) return null
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden bg-[var(--color-bg-primary)]">
+    <div className="flex flex-1 flex-col overflow-hidden bg-[var(--color-app)]">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">

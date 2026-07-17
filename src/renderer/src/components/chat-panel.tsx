@@ -350,7 +350,7 @@ function ToolbarButton({
         'rounded p-1 transition-colors',
         active
           ? 'bg-card text-primary'
-          : 'pi-hover-highlight text-dim hover:text-secondary'
+          : 'hover:bg-highlight text-dim hover:text-secondary'
       )}
       title={title}
     >

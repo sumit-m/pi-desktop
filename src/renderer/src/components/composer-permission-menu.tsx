@@ -56,7 +56,7 @@ export function ComposerPermissionMenu({ value, onChange }: ComposerPermissionMe
           'flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors',
           isTrusted
             ? 'bg-warning/15 text-warning hover:bg-warning/35'
-            : 'pi-hover-highlight-strong text-secondary hover:text-primary'
+            : 'hover:bg-highlight-strong text-secondary hover:text-primary'
         )}
         title={getPermissionModeDescription(mode).replace(/\.$/, '')}
       >
@@ -80,7 +80,7 @@ export function ComposerPermissionMenu({ value, onChange }: ComposerPermissionMe
               type="button"
               disabled={saving}
               onClick={() => handleSelect(option.value)}
-              className="pi-hover-highlight flex w-full items-center justify-between gap-6 whitespace-nowrap px-3 py-1 text-left text-xs text-primary transition-colors disabled:opacity-60"
+              className="hover:bg-highlight flex w-full items-center justify-between gap-6 whitespace-nowrap px-3 py-1 text-left text-xs text-primary transition-colors disabled:opacity-60"
             >
               <span>{option.label}</span>
               {option.value === mode && <Check size={12} className="shrink-0 text-muted" />}

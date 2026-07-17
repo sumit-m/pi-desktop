@@ -75,7 +75,7 @@ export function CouncilPanels(): React.JSX.Element | null {
 
       {!collapsed && (
         <div className="mt-2">
-          {run.phase === 'refused' && <div className="text-sm text-amber-400">{run.reason}</div>}
+          {run.phase === 'refused' && <div className="text-sm text-warning">{run.reason}</div>}
 
           {/* Live streaming view while consultants are working. */}
           {run.phase === 'consulting' && (run.members?.length ?? 0) > 0 && (
@@ -104,7 +104,7 @@ export function CouncilPanels(): React.JSX.Element | null {
                   <div className="mb-1 flex items-center justify-between">
                     <span className="text-sm text-primary">{AGENT_LABEL[r.id] ?? r.id}</span>
                     <span
-                      className={`text-xs ${r.status === 'contributed' ? 'text-success' : 'text-amber-400'}`}
+                      className={`text-xs ${r.status === 'contributed' ? 'text-success' : 'text-warning'}`}
                     >
                       {STATUS_LABEL[r.status]}
                     </span>

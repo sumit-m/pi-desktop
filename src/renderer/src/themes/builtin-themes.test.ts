@@ -32,7 +32,7 @@ test('ported themes pin every token in overrides (parity guarantee)', () => {
     )
     const seedBacked = new Set(['app', 'surface', 'primary', 'accent', 'success', 'warning', 'error'])
     // error-hover and border-strong-hover have no legacy CSS counterpart to
-    // reproduce (no theme ever remapped bg-red-500/600 or border-neutral-600),
+    // reproduce (no theme ever remapped the red-500/600 or neutral-600 shades),
     // so they derive via MIX(..., 15) / MIX(..., 35) instead of pinning the
     // raw value that would carry the theme-blind bug forward.
     const derivedOnly = new Set(['error-hover', 'border-strong-hover'])
