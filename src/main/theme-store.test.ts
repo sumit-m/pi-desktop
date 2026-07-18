@@ -4,7 +4,7 @@ import { mkdtemp, writeFile, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  listUserThemes, saveUserTheme, deleteUserTheme, installThemeFromUrl,
+  listUserThemes, saveUserTheme, deleteUserTheme, installThemeFromUrl, fetchGalleryThemes,
 } from './theme-store'
 import { THEME_SCHEMA_V1, type ThemeFile } from '../shared/theme/theme-file'
 
@@ -318,4 +318,41 @@ test('installThemeFromUrl allows a public IPv4 literal', async () => {
   const { id } = await installThemeFromUrl(dir, url, fetchFn)
   assert.equal(id, 'publicip')
   assert.deepEqual(calls, [url])
+})
+
+// --- fetchGalleryThemes -----------------------------------------------------
+
+const jsonFetch = (payload: unknown): typeof fetch =>
+  (async () => new Response(JSON.stringify(payload), { status: 200 })) as typeof fetch
+
+test('fetchGalleryThemes returns valid entries with pinned first-party URLs', async () => {
+  const themes = await fetchGalleryThemes(jsonFetch([
+    { name: 'Ocean', kind: 'dark', file: 'themes/ocean.json' },
+    { name: 'Ember Light', kind: 'light', file: 'themes/ember-light.json' },
+  ]))
+  assert.deepEqual(themes, [
+    { name: 'Ocean', kind: 'dark', url: 'https://raw.githubusercontent.com/FaqFirebase/pi-desktop-themes/main/themes/ocean.json' },
+    { name: 'Ember Light', kind: 'light', url: 'https://raw.githubusercontent.com/FaqFirebase/pi-desktop-themes/main/themes/ember-light.json' },
+  ])
+})
+
+test('fetchGalleryThemes drops malformed and path-traversal entries', async () => {
+  const themes = await fetchGalleryThemes(jsonFetch([
+    { name: 'Good', kind: 'dark', file: 'themes/good.json' },
+    { name: 'No kind', file: 'themes/x.json' },
+    { name: 'Bad kind', kind: 'sepia', file: 'themes/x.json' },
+    { name: 'Traversal', kind: 'dark', file: 'themes/../../etc/passwd' },
+    { name: 'Absolute', kind: 'dark', file: 'https://evil.example.com/x.json' },
+    { name: 'Wrong dir', kind: 'dark', file: 'other/x.json' },
+    { name: '', kind: 'dark', file: 'themes/empty.json' },
+    'not an object',
+  ]))
+  // Only the single well-formed entry survives.
+  assert.deepEqual(themes.map((t) => t.name), ['Good'])
+})
+
+test('fetchGalleryThemes rejects a non-array index and a failed fetch', async () => {
+  await assert.rejects(fetchGalleryThemes(jsonFetch({ not: 'an array' })), /not a JSON array/)
+  const failFetch = (async () => new Response('', { status: 500 })) as typeof fetch
+  await assert.rejects(fetchGalleryThemes(failFetch), /gallery index download failed: 500/)
 })

@@ -5,6 +5,7 @@ import {
   validateThemeFile, themeIdFromName, MAX_THEME_FILE_BYTES, type ThemeFile,
 } from '../shared/theme/theme-file'
 import { BUILTIN_THEME_IDS } from '../shared/theme/builtin-ids'
+import type { GalleryTheme } from '../shared/ipc-contracts'
 
 const THEME_FILE_EXT = '.json'
 const VALID_THEME_ID = /^[a-z0-9-]+$/
@@ -291,9 +292,12 @@ function assertSafeThemeUrl(parsed: URL): void {
   // well-known local hostnames only, not DNS-rebinding SSRF.
 }
 
-export async function installThemeFromUrl(
-  dir: string, url: string, fetchFn: typeof fetch = fetch,
-): Promise<{ id: string; file: ThemeFile }> {
+// Fetches `url` following redirects manually, re-running the SSRF guard on
+// every hop's target before it is fetched, with a per-request timeout and a
+// redirect cap. Returns the first non-redirect Response (the caller checks
+// `.ok` and reads the body under a size cap). Shared by installThemeFromUrl
+// and fetchGalleryThemes so both get identical redirect/SSRF protection.
+async function guardedFetch(url: string, fetchFn: typeof fetch): Promise<Response> {
   let current = new URL(url)
   assertSafeThemeUrl(current)
 
@@ -319,10 +323,53 @@ export async function installThemeFromUrl(
     current = new URL(location, current)
     assertSafeThemeUrl(current)
   }
+  return response
+}
 
+export async function installThemeFromUrl(
+  dir: string, url: string, fetchFn: typeof fetch = fetch,
+): Promise<{ id: string; file: ThemeFile }> {
+  const response = await guardedFetch(url, fetchFn)
   if (!response.ok) throw new Error(`theme download failed: ${response.status}`)
   const body = await readCappedText(response, MAX_THEME_FILE_BYTES)
   const file = validateThemeFile(JSON.parse(body))
   const { id } = await saveUserTheme(dir, file)
   return { id, file }
+}
+
+// --- Community gallery ------------------------------------------------------
+//
+// The gallery is a first-party GitHub repo whose index.json lists themes as
+// { name, kind, file } where `file` is a repo-relative path. The install URL
+// is built here as GALLERY_RAW_BASE + '/' + file, NOT taken from the entry as
+// a full URL: this pins every gallery install to the gallery's own raw host
+// and path, so even a compromised index can only reference files inside the
+// (PR-reviewed, CI-validated) gallery repo — it can never point an install at
+// an arbitrary or internal host. Each `file` is still validated against a
+// strict pattern to block path traversal, and installs go through
+// installThemeFromUrl, which re-validates content and re-runs the SSRF guard.
+
+const GALLERY_RAW_BASE =
+  'https://raw.githubusercontent.com/FaqFirebase/pi-desktop-themes/main'
+const GALLERY_INDEX_URL = `${GALLERY_RAW_BASE}/index.json`
+const MAX_GALLERY_INDEX_BYTES = 262144
+const GALLERY_FILE_PATH = /^themes\/[a-z0-9-]+\.json$/
+
+export async function fetchGalleryThemes(fetchFn: typeof fetch = fetch): Promise<GalleryTheme[]> {
+  const response = await guardedFetch(GALLERY_INDEX_URL, fetchFn)
+  if (!response.ok) throw new Error(`gallery index download failed: ${response.status}`)
+  const body = await readCappedText(response, MAX_GALLERY_INDEX_BYTES)
+  const parsed: unknown = JSON.parse(body)
+  if (!Array.isArray(parsed)) throw new Error('gallery index is not a JSON array')
+
+  const themes: GalleryTheme[] = []
+  for (const entry of parsed) {
+    if (typeof entry !== 'object' || entry === null) continue
+    const { name, kind, file } = entry as Record<string, unknown>
+    if (typeof name !== 'string' || name.trim().length === 0) continue
+    if (kind !== 'dark' && kind !== 'light') continue
+    if (typeof file !== 'string' || !GALLERY_FILE_PATH.test(file)) continue
+    themes.push({ name, kind, url: `${GALLERY_RAW_BASE}/${file}` })
+  }
+  return themes
 }
