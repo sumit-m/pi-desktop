@@ -63,10 +63,18 @@ function tokenLabel(name: string): string {
   return name.replace(/-/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
+// Shared by the render-time selector and the unmount-cleanup effect below —
+// both need "what theme is currently persisted/drafted", but the cleanup
+// reads it via `useAppStore.getState()` at cleanup time rather than through
+// the hook, so the two call sites can't share a `useAppStore(...)` call.
+function resolveSettingsThemeId(state: ReturnType<typeof useAppStore.getState>): string {
+  return state.settingsDraft.theme ?? state.settings?.theme ?? 'dark'
+}
+
 export function ThemeEditor({
   baseTheme, baseId, isUserTheme, onClose, onSaved,
 }: ThemeEditorProps): React.JSX.Element {
-  const settingsThemeId = useAppStore((s) => s.settingsDraft.theme ?? s.settings?.theme ?? 'dark')
+  const settingsThemeId = useAppStore(resolveSettingsThemeId)
   const setSettingsDraft = useAppStore((s) => s.setSettingsDraft)
 
   const [draft, setDraft] = useState<ThemeFile>(() =>
@@ -80,6 +88,13 @@ export function ThemeEditor({
     setDraft(next)
     previousKeys.current = applyThemeVars(
       document.documentElement, resolveThemeVars(next), previousKeys.current)
+    // Mirror applyTheme's non-variable side effects so a kind toggle takes
+    // full effect during preview, not just on save: the `light` class drives
+    // the Tailwind `@custom-variant light` selector, and colorScheme flips
+    // native browser chrome — including the color-picker inputs this editor
+    // itself renders — immediately rather than only after save/cancel.
+    document.documentElement.classList.toggle('light', next.kind === 'light')
+    document.documentElement.style.colorScheme = next.kind
     const style = getComputedStyle(document.documentElement)
     const read: Record<string, string> = {}
     for (const token of TOKEN_NAMES) read[token] = style.getPropertyValue(cssVarForToken(token)).trim()
@@ -92,6 +107,22 @@ export function ThemeEditor({
     // Apply the initial draft once on mount; every subsequent change flows
     // back through `preview` from the row handlers below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    // This editor mutates document-level CSS vars/class/colorScheme for live
+    // preview. `ThemeEditor` lives inside `SettingsPanel`, which unmounts
+    // outright (no `hidden`-class preservation) whenever the user navigates
+    // to another sidebar view — a path that goes through neither `cancel()`
+    // nor a successful `save()`. Without this cleanup, an abandoned draft's
+    // preview would stay applied to the whole app indefinitely. It reads the
+    // settings theme fresh from the store (not the `settingsThemeId` value
+    // closed over at mount) because a successful save updates the store's
+    // settingsDraft before this component unmounts — using the mount-time
+    // value here would clobber that just-saved theme with the stale one.
+    return () => {
+      applyTheme(resolveSettingsThemeId(useAppStore.getState()))
+    }
   }, [])
 
   const cancel = useCallback(() => {
@@ -116,10 +147,28 @@ export function ThemeEditor({
     setSaveError(null)
     try {
       const { id } = await window.piDesktop.themes.save(draft)
-      if (isUserTheme && id !== baseId) await window.piDesktop.themes.delete(baseId)
+      // The theme file write has already succeeded at this point, so commit
+      // it to app state unconditionally before attempting the rename cleanup
+      // below. If the old-id delete throws, the catch below must not run
+      // first — that would leave a real, saved theme file on disk that the
+      // registry, applied theme, and settings draft have no record of.
       registerThemes([{ id, file: draft }])
       applyTheme(id)
       setSettingsDraft({ theme: id })
+      if (isUserTheme && id !== baseId) {
+        try {
+          await window.piDesktop.themes.delete(baseId)
+        } catch {
+          // Save succeeded and is already fully applied above; only the
+          // old file's cleanup failed. Surface that distinctly instead of
+          // the generic save-failure message, and still proceed as a
+          // successful save (the leftover old-id registry entry until
+          // restart is a known, accepted limitation — see task report).
+          setSaveError(
+            `Theme saved as "${draft.name}", but the old version could not be removed and may still appear in the list.`
+          )
+        }
+      }
       onSaved(id)
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : String(error))
