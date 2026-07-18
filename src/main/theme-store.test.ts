@@ -42,6 +42,17 @@ test('saving a theme named after a built-in avoids the built-in id', async () =>
   assert.equal(id, 'nord-2')
 })
 
+test('saving a theme named after a Windows reserved device avoids the reserved id', async () => {
+  const dir = await freshDir()
+  // "CON"/"NUL"/"COM1"/... are Windows device names even with a .json
+  // extension, so their slugs must never become the on-disk filename.
+  assert.equal((await saveUserTheme(dir, theme('CON'))).id, 'con-2')
+  assert.equal((await saveUserTheme(dir, theme('nul'))).id, 'nul-2')
+  assert.equal((await saveUserTheme(dir, theme('Com1'))).id, 'com1-2')
+  // A non-reserved lookalike is unaffected.
+  assert.equal((await saveUserTheme(dir, theme('com0'))).id, 'com0')
+})
+
 test('re-importing the same built-in-named theme stays on the same suffixed id', async () => {
   const dir = await freshDir()
   const first = await saveUserTheme(dir, theme('Nord'))

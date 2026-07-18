@@ -59,12 +59,20 @@ const BUILTIN_IDENTITY_SENTINEL = '\0builtin'
 
 const SUFFIX_START = 2
 
-// Finds the first id starting at `base` that `isBlocked` accepts, appending
-// `-2`, `-3`, ... until one is free. Shared by both save paths below; only
-// the definition of "blocked" differs between them.
+// Windows treats these as device names even with a file extension, so a slug
+// matching one cannot be written as "<id>.json" on Windows (fs writes fail or
+// hit the device). Blocking them in the id search makes the suffix loop yield
+// a safe id (e.g. "con" -> "con-2", which is not reserved), keeping user-theme
+// files portable across macOS, Windows, and Linux. Appending "-N" always
+// de-reserves, so this can never loop forever.
+const WINDOWS_RESERVED_ID = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i
+
+// Finds the first id starting at `base` that is neither reserved nor rejected
+// by `isBlocked`, appending `-2`, `-3`, ... until one is free. Shared by both
+// save paths below; only the caller's definition of "blocked" differs.
 function nextAvailableId(base: string, isBlocked: (id: string) => boolean): string {
   let id = base
-  for (let n = SUFFIX_START; isBlocked(id); n += 1) id = `${base}-${n}`
+  for (let n = SUFFIX_START; WINDOWS_RESERVED_ID.test(id) || isBlocked(id); n += 1) id = `${base}-${n}`
   return id
 }
 
