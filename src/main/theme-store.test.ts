@@ -166,17 +166,145 @@ test('installThemeFromUrl validates scheme, size, and content', async () => {
     installThemeFromUrl(dir, 'https://example.com/404.json', failFetch), /404/)
 })
 
+// installThemeFromUrl fetches in the Electron main process, outside the
+// renderer's CSP connect-src. Without host classification this is a blind
+// SSRF: a URL (or a redirect target) pointing at a private/loopback/
+// link-local/metadata host causes the main process to issue a real GET
+// against internal infrastructure. These tests prove the guard runs BEFORE
+// any network call (fetchFn.mock.calls stays empty) for every dangerous
+// host class, and that manual redirect handling validates every hop so a
+// public URL cannot be used to bounce a request onto an internal one.
+
+function trackingFetch(
+  responses: Record<string, () => Response>,
+): { fetchFn: typeof fetch; calls: string[] } {
+  const calls: string[] = []
+  const fetchFn = (async (input: Parameters<typeof fetch>[0]) => {
+    const url = typeof input === 'string' ? input : input.toString()
+    calls.push(url)
+    const make = responses[url]
+    if (!make) throw new Error(`unexpected fetch to ${url}`)
+    return make()
+  }) as typeof fetch
+  return { fetchFn, calls }
+}
+
+const PRIVATE_IPV4_URLS = [
+  'https://127.0.0.1/',
+  'https://10.0.0.5/',
+  'https://172.16.0.1/',
+  'https://192.168.1.1/',
+  'https://169.254.169.254/',
+  'https://100.64.0.1/',
+]
+
+for (const url of PRIVATE_IPV4_URLS) {
+  test(`installThemeFromUrl rejects private IPv4 literal ${url}`, async () => {
+    const dir = await freshDir()
+    const { fetchFn, calls } = trackingFetch({})
+    await assert.rejects(installThemeFromUrl(dir, url, fetchFn), /block|private|internal|reserved/i)
+    assert.equal(calls.length, 0)
+  })
+}
+
+const BLOCKED_HOSTNAMES = ['https://localhost/', 'https://foo.local/']
+
+for (const url of BLOCKED_HOSTNAMES) {
+  test(`installThemeFromUrl rejects blocked hostname ${url}`, async () => {
+    const dir = await freshDir()
+    const { fetchFn, calls } = trackingFetch({})
+    await assert.rejects(installThemeFromUrl(dir, url, fetchFn), /block|local/i)
+    assert.equal(calls.length, 0)
+  })
+}
+
+const PRIVATE_IPV6_URLS = [
+  'https://[::1]/',
+  'https://[fc00::1]/',
+  'https://[fe80::1]/',
+  'https://[::ffff:10.0.0.1]/',
+]
+
+for (const url of PRIVATE_IPV6_URLS) {
+  test(`installThemeFromUrl rejects private IPv6 literal ${url}`, async () => {
+    const dir = await freshDir()
+    const { fetchFn, calls } = trackingFetch({})
+    await assert.rejects(installThemeFromUrl(dir, url, fetchFn), /block|private|internal|reserved/i)
+    assert.equal(calls.length, 0)
+  })
+}
+
+test('installThemeFromUrl blocks a public URL that redirects to an internal host', async () => {
+  const dir = await freshDir()
+  const publicUrl = 'https://public.example.com/t.json'
+  const internalUrl = 'https://10.0.0.5/x'
+  const { fetchFn, calls } = trackingFetch({
+    [publicUrl]: () => new Response(null, { status: 302, headers: { location: internalUrl } }),
+  })
+  await assert.rejects(installThemeFromUrl(dir, publicUrl, fetchFn), /block|private|internal|reserved/i)
+  assert.deepEqual(calls, [publicUrl])
+})
+
+test('installThemeFromUrl follows a public-to-public redirect chain to a valid theme', async () => {
+  const dir = await freshDir()
+  const hop1 = 'https://hop1.example.com/t.json'
+  const hop2 = 'https://hop2.example.com/t.json'
+  const finalUrl = 'https://final.example.com/t.json'
+  const body = JSON.stringify(theme('Chained'))
+  const { fetchFn, calls } = trackingFetch({
+    [hop1]: () => new Response(null, { status: 302, headers: { location: hop2 } }),
+    [hop2]: () => new Response(null, { status: 302, headers: { location: finalUrl } }),
+    [finalUrl]: () => new Response(body, { status: 200 }),
+  })
+  const { id } = await installThemeFromUrl(dir, hop1, fetchFn)
+  assert.equal(id, 'chained')
+  assert.deepEqual(calls, [hop1, hop2, finalUrl])
+})
+
+test('installThemeFromUrl throws when redirects exceed the cap', async () => {
+  const dir = await freshDir()
+  const base = 'https://redirect.example.com/'
+  const hopCount = 8
+  const responses: Record<string, () => Response> = {}
+  for (let i = 0; i < hopCount; i += 1) {
+    responses[`${base}${i}`] = () => new Response(null, {
+      status: 302, headers: { location: `${base}${i + 1}` },
+    })
+  }
+  const { fetchFn } = trackingFetch(responses)
+  await assert.rejects(installThemeFromUrl(dir, `${base}0`, fetchFn), /redirect/i)
+})
+
+test('installThemeFromUrl still installs from a normal public https URL', async () => {
+  const dir = await freshDir()
+  const body = JSON.stringify(theme('Plain'))
+  const { fetchFn, calls } = trackingFetch({
+    'https://public.example.com/plain.json': () => new Response(body, { status: 200 }),
+  })
+  const { id } = await installThemeFromUrl(dir, 'https://public.example.com/plain.json', fetchFn)
+  assert.equal(id, 'plain')
+  assert.deepEqual(calls, ['https://public.example.com/plain.json'])
+})
+
 test('installThemeFromUrl rejects a redirect that downgrades to http', async () => {
   const dir = await freshDir()
-  const downgradedUrl = 'http://evil.example.com/t.json'
-  const redirectFetch = (async () => {
-    const response = new Response(JSON.stringify(theme('Remote')), { status: 200 })
-    // Response.url has no writable init option; the only way to simulate
-    // undici's post-redirect response.url is to override the getter result
-    // directly, mirroring what a real https->http redirect would produce.
-    Object.defineProperty(response, 'url', { value: downgradedUrl })
-    return response
-  }) as typeof fetch
-  await assert.rejects(
-    installThemeFromUrl(dir, 'https://example.com/t.json', redirectFetch), /https/)
+  const httpsUrl = 'https://example.com/t.json'
+  const httpUrl = 'http://evil.example.com/t.json'
+  const { fetchFn, calls } = trackingFetch({
+    [httpsUrl]: () => new Response(null, { status: 302, headers: { location: httpUrl } }),
+  })
+  await assert.rejects(installThemeFromUrl(dir, httpsUrl, fetchFn), /https/)
+  assert.deepEqual(calls, [httpsUrl])
+})
+
+test('installThemeFromUrl allows a public IPv4 literal', async () => {
+  const dir = await freshDir()
+  const url = 'https://93.184.216.34/'
+  const body = JSON.stringify(theme('PublicIp'))
+  const { fetchFn, calls } = trackingFetch({
+    [url]: () => new Response(body, { status: 200 }),
+  })
+  const { id } = await installThemeFromUrl(dir, url, fetchFn)
+  assert.equal(id, 'publicip')
+  assert.deepEqual(calls, [url])
 })
