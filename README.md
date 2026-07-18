@@ -39,6 +39,42 @@ Changed files use readable status badges:
 | `STG` | Modified file staged in git |
 | `REN` | File was renamed |
 
+## Custom themes
+
+Pi Desktop ships 7 built-in themes (Dark, Light, Nord, Gruvbox, Breeze Dark, Breeze Light, Breeze Claudius) plus System, and you can create your own from **Settings → Appearance**.
+
+**In-app editor.** Click **Create theme** to fork the currently active theme, or **Edit theme** to keep editing one you already created. Pick 7 seed colors — app background, surface, text, accent, success, warning, error — and a dark/light **kind**; every other color in the app is derived from those seeds. Changes preview live across the whole window as you edit. Two disclosures cover finer control:
+
+- **Advanced** — override any of the ~30 derived tokens individually (borders, hovers, scrollbars, and so on) instead of accepting the automatic derivation.
+- **Syntax colors** — override code-highlighting colors (keywords, strings, comments, etc.) for the code editor and diff viewer.
+
+Themes you create are listed alongside the built-ins in the **Theme** dropdown, and can be renamed, duplicated, or deleted from the editor.
+
+**Import / export / URL install.** Use **Import** and **Export** to share a theme as a `.json` file, or paste an `https://` URL into **Install from URL** to fetch and install one directly (HTTP is rejected; downloads are size-capped).
+
+**The `pi-theme/v1` format.** A theme file is JSON with a `$schema`, a `name`, a `kind` (`"dark"` or `"light"`), and 7 `seeds`. That's enough for a complete, valid theme — everything else is derived automatically via CSS `color-mix()`:
+
+```json
+{
+  "$schema": "pi-theme/v1",
+  "name": "My Theme",
+  "kind": "dark",
+  "seeds": {
+    "app": "#0a0a0a",
+    "surface": "#171717",
+    "text": "#f5f5f5",
+    "accent": "#2563eb",
+    "success": "#34d399",
+    "warning": "#facc15",
+    "error": "#f87171"
+  }
+}
+```
+
+Two optional top-level objects let you pin exact values instead of relying on derivation: `overrides` (any derived token, e.g. `border`, `scrollbar`, `accent-hover`) and `syntax` (code-highlighting colors, e.g. `keyword`, `string`, `comment`). Both are entirely optional — omit them and the theme still renders correctly from the 7 seeds alone.
+
+User theme files live in the app's user-data directory under `themes/` — on Linux, `~/.config/pi-desktop/themes/`.
+
 ## Multi-Agent Council Planning
 
 Pi, Claude, and Codex each produce an initial plan, share and converge, and Pi presents the agreed consensus plan *before* anything is built. All members plan read-only; Pi is the only agent that edits files.
