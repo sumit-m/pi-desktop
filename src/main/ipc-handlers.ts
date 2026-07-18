@@ -651,11 +651,6 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
     return loadAppSettings(workspaceManager)
   })
 
-  ipcMain.handle(IPC_CHANNELS.SETTINGS_GET_THEME, async () => {
-    const settings = await loadAppSettings(workspaceManager)
-    return settings.theme
-  })
-
   // Reconcile the OS-level "run on startup" state with the saved preference on
   // launch. Self-healing: repairs a stale Linux autostart Exec path after an
   // app update/move and re-asserts the login item on macOS/Windows. Runs in the

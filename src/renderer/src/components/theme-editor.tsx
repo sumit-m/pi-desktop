@@ -93,10 +93,10 @@ export function ThemeEditor({
     previousKeys.current = applyThemeVars(
       document.documentElement, resolveThemeVars(next), previousKeys.current)
     // Mirror applyTheme's non-variable side effects so a kind toggle takes
-    // full effect during preview, not just on save: the `light` class drives
-    // the Tailwind `@custom-variant light` selector, and colorScheme flips
-    // native browser chrome — including the color-picker inputs this editor
-    // itself renders — immediately rather than only after save/cancel.
+    // full effect during preview, not just on save: the `light` class is the
+    // documented kind signal on <html> (a hook for user CSS), and colorScheme
+    // flips native browser chrome — including the color-picker inputs this
+    // editor itself renders — immediately rather than only after save/cancel.
     document.documentElement.classList.toggle('light', next.kind === 'light')
     document.documentElement.style.colorScheme = next.kind
     const style = getComputedStyle(document.documentElement)

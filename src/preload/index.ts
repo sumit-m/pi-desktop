@@ -101,7 +101,6 @@ interface PiDesktopAPI {
   settings: {
     getAll(): Promise<AppSettings>
     save(settings: Partial<AppSettings>): Promise<AppSettings>
-    getTheme(): Promise<string>
   }
 
   // Themes (user-created theme storage)
@@ -289,7 +288,6 @@ const api: PiDesktopAPI = {
   settings: {
     getAll: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ALL),
     save: (settings) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SAVE, settings),
-    getTheme: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_THEME),
   },
 
   themes: {

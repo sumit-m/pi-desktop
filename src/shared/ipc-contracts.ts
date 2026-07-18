@@ -52,7 +52,6 @@ export const IPC_CHANNELS = {
   // Settings
   SETTINGS_GET_ALL: 'settings:get-all',
   SETTINGS_SAVE: 'settings:save',
-  SETTINGS_GET_THEME: 'settings:get-theme',
 
   // UI
   UI_SELECT_RESPONSE: 'ui:select-response',

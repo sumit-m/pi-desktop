@@ -8,8 +8,6 @@
   font-display: swap;
 }
 
-@custom-variant light (.light &);
-
 /* Tailwind v4 gates the `hover:` variant behind `@media (hover: hover)`. The
    Electron/Chromium renderer reports `(hover: hover): false`, which silently
    disables every `hover:` utility app-wide. Redefine the variant to fire on a
