@@ -157,9 +157,13 @@ export function SettingsPanel(): React.JSX.Element {
     setThemeEditorState({ baseTheme, baseId: theme, isUserTheme: true })
   }
 
-  const handleThemeEditorSaved = (id: string) => {
+  const handleThemeEditorSaved = (id: string, warning?: string) => {
     setTheme(id)
-    setThemeActionError(null)
+    // A warning is a non-fatal post-save problem (rename cleanup failure).
+    // It has to live in the panel's themeActionError, not the editor's own
+    // saveError: the editor unmounts in this same commit, so only state
+    // owned here survives long enough to render.
+    setThemeActionError(warning ?? null)
     setThemeEditorState(null)
   }
 

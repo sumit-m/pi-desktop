@@ -21,7 +21,11 @@ export interface ThemeEditorProps {
   baseId: string
   isUserTheme: boolean
   onClose: () => void
-  onSaved: (id: string) => void
+  // `warning` carries a non-fatal post-save problem (e.g. rename cleanup
+  // failure). It must be surfaced by the parent, not via this editor's own
+  // saveError state: onSaved unmounts the editor in the same React commit,
+  // so a message set here would never paint.
+  onSaved: (id: string, warning?: string) => void
 }
 
 const SEED_LABELS: Record<SeedName, string> = {
@@ -155,21 +159,21 @@ export function ThemeEditor({
       registerThemes([{ id, file: draft }])
       applyTheme(id)
       setSettingsDraft({ theme: id })
+      let warning: string | undefined
       if (isUserTheme && id !== baseId) {
         try {
           await window.piDesktop.themes.delete(baseId)
         } catch {
           // Save succeeded and is already fully applied above; only the
-          // old file's cleanup failed. Surface that distinctly instead of
-          // the generic save-failure message, and still proceed as a
-          // successful save (the leftover old-id registry entry until
-          // restart is a known, accepted limitation — see task report).
-          setSaveError(
+          // old file's cleanup failed. Still proceed as a successful save
+          // (the leftover old-id registry entry until restart is a known,
+          // accepted limitation — see task report), passing the warning
+          // through onSaved for the parent to render.
+          warning =
             `Theme saved as "${draft.name}", but the old version could not be removed and may still appear in the list.`
-          )
         }
       }
-      onSaved(id)
+      onSaved(id, warning)
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : String(error))
     } finally {
