@@ -327,11 +327,12 @@ const jsonFetch = (payload: unknown): typeof fetch =>
 
 test('fetchGalleryThemes returns valid entries with pinned first-party URLs', async () => {
   const themes = await fetchGalleryThemes(jsonFetch([
-    { name: 'Ocean', kind: 'dark', file: 'themes/ocean.json' },
+    // Current per-folder layout and the original flat layout are both valid.
+    { name: 'Ocean', kind: 'dark', file: 'themes/ocean/theme.json' },
     { name: 'Ember Light', kind: 'light', file: 'themes/ember-light.json' },
   ]))
   assert.deepEqual(themes.map(({ name, kind, url }) => ({ name, kind, url })), [
-    { name: 'Ocean', kind: 'dark', url: 'https://raw.githubusercontent.com/FaqFirebase/pi-desktop-themes/main/themes/ocean.json' },
+    { name: 'Ocean', kind: 'dark', url: 'https://raw.githubusercontent.com/FaqFirebase/pi-desktop-themes/main/themes/ocean/theme.json' },
     { name: 'Ember Light', kind: 'light', url: 'https://raw.githubusercontent.com/FaqFirebase/pi-desktop-themes/main/themes/ember-light.json' },
   ])
 })
@@ -360,6 +361,9 @@ test('fetchGalleryThemes drops malformed and path-traversal entries', async () =
     { name: 'No kind', file: 'themes/x.json' },
     { name: 'Bad kind', kind: 'sepia', file: 'themes/x.json' },
     { name: 'Traversal', kind: 'dark', file: 'themes/../../etc/passwd' },
+    { name: 'Folder traversal', kind: 'dark', file: 'themes/x/../y/theme.json' },
+    { name: 'Nested too deep', kind: 'dark', file: 'themes/a/b/theme.json' },
+    { name: 'Wrong file name', kind: 'dark', file: 'themes/x/other.json' },
     { name: 'Absolute', kind: 'dark', file: 'https://evil.example.com/x.json' },
     { name: 'Wrong dir', kind: 'dark', file: 'other/x.json' },
     { name: '', kind: 'dark', file: 'themes/empty.json' },

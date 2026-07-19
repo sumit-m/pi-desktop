@@ -356,7 +356,12 @@ const GALLERY_INDEX_URL = `${GALLERY_RAW_BASE}/index.json`
 // The index embeds each theme's full content for gallery preview cards, so
 // its cap is a multiple of the single-file cap rather than equal to it.
 const MAX_GALLERY_INDEX_BYTES = 1048576
-const GALLERY_FILE_PATH = /^themes\/[a-z0-9-]+\.json$/
+// Accepts both gallery layouts: the current per-theme folder form
+// (themes/<slug>/theme.json) and the original flat form (themes/<slug>.json),
+// so the app keeps working across the repo's layout migration. The character
+// class has no '.', '/' or '\', so neither form can smuggle traversal or an
+// absolute/other-host URL into the pinned base join.
+const GALLERY_FILE_PATH = /^themes\/[a-z0-9-]+(?:\/theme)?\.json$/
 
 // Untrusted display string from the gallery index: usable only when it is a
 // non-empty string within the cap; anything else is treated as absent.
