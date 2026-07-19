@@ -2,6 +2,8 @@ import { SEED_NAMES, TOKEN_NAMES, type SeedName, type TokenName } from './tokens
 
 export const THEME_SCHEMA_V1 = 'pi-theme/v1'
 export const MAX_THEME_NAME_LENGTH = 64
+export const MAX_THEME_AUTHOR_LENGTH = 64
+export const MAX_THEME_DESCRIPTION_LENGTH = 280
 export const MAX_THEME_FILE_BYTES = 262144
 
 export const SYNTAX_KEYS = [
@@ -16,6 +18,10 @@ export interface ThemeFile {
   $schema: typeof THEME_SCHEMA_V1
   name: string
   kind: 'dark' | 'light'
+  // Optional authorship metadata, shown by the community gallery and kept
+  // through export/import. Plain display strings — never interpreted.
+  author?: string
+  description?: string
   seeds: Record<SeedName, string>
   overrides?: Partial<Record<TokenName, string>>
   syntax?: Partial<Record<SyntaxKey, string>>
@@ -79,6 +85,8 @@ export function validateThemeFile(data: unknown): ThemeFile {
   if (raw.kind !== 'dark' && raw.kind !== 'light') {
     throw new ThemeValidationError('kind must be "dark" or "light"')
   }
+  const author = validateOptionalText(raw.author, 'author', MAX_THEME_AUTHOR_LENGTH)
+  const description = validateOptionalText(raw.description, 'description', MAX_THEME_DESCRIPTION_LENGTH)
   const seeds = requireColorMap(raw.seeds, SEED_NAMES, 'seeds', true)
   const overrides = raw.overrides === undefined
     ? undefined
@@ -90,10 +98,26 @@ export function validateThemeFile(data: unknown): ThemeFile {
     $schema: THEME_SCHEMA_V1,
     name: raw.name.trim(),
     kind: raw.kind,
+    ...(author !== undefined ? { author } : {}),
+    ...(description !== undefined ? { description } : {}),
     seeds: seeds as ThemeFile['seeds'],
     ...(overrides ? { overrides: overrides as ThemeFile['overrides'] } : {}),
     ...(syntax ? { syntax: syntax as ThemeFile['syntax'] } : {}),
   }
+}
+
+// Optional display-text fields: absent is fine; if present they must be
+// non-empty strings within the given cap (empty means "omit it instead").
+function validateOptionalText(
+  value: unknown, label: string, maxLength: number,
+): string | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || value.trim().length === 0 || value.length > maxLength) {
+    throw new ThemeValidationError(
+      `${label} must be a non-empty string of at most ${maxLength} characters`,
+    )
+  }
+  return value.trim()
 }
 
 export function themeIdFromName(name: string): string {

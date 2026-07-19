@@ -65,3 +65,24 @@ for (const [label, mutate] of [
 test('themeIdFromName slugifies', () => {
   assert.equal(themeIdFromName('My Nord Fork!'), 'my-nord-fork')
 })
+
+test('accepts optional author and description, trims them', () => {
+  const theme = validateThemeFile({
+    ...valid,
+    author: '  Pi Desktop  ',
+    description: 'A calm dark theme.',
+  })
+  assert.equal(theme.author, 'Pi Desktop')
+  assert.equal(theme.description, 'A calm dark theme.')
+  // Absent fields stay absent, not empty strings.
+  const bare = validateThemeFile(valid)
+  assert.equal('author' in bare, false)
+  assert.equal('description' in bare, false)
+})
+
+test('rejects invalid author and description values', () => {
+  assert.throws(() => validateThemeFile({ ...valid, author: '' }), ThemeValidationError)
+  assert.throws(() => validateThemeFile({ ...valid, author: 42 }), ThemeValidationError)
+  assert.throws(() => validateThemeFile({ ...valid, author: 'x'.repeat(65) }), ThemeValidationError)
+  assert.throws(() => validateThemeFile({ ...valid, description: 'x'.repeat(281) }), ThemeValidationError)
+})

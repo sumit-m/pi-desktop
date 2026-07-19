@@ -3,7 +3,8 @@ import { clsx } from 'clsx'
 import { RotateCcw, X } from 'lucide-react'
 import { useAppStore } from '../store'
 import {
-  MAX_THEME_NAME_LENGTH, SYNTAX_KEYS, type SyntaxKey, type ThemeFile,
+  MAX_THEME_NAME_LENGTH, MAX_THEME_AUTHOR_LENGTH, MAX_THEME_DESCRIPTION_LENGTH,
+  SYNTAX_KEYS, type SyntaxKey, type ThemeFile,
 } from '../../../shared/theme/theme-file'
 import {
   SEED_NAMES, SEED_TO_TOKEN, TOKEN_NAMES, cssVarForToken,
@@ -154,18 +155,27 @@ export function ThemeEditor({
     setSaving(true)
     setSaveError(null)
     try {
+      // The validator treats empty metadata strings as errors ("omit instead"),
+      // and a user who typed then cleared a field leaves '' in the draft — so
+      // strip blank author/description before the payload crosses IPC.
+      const { author, description, ...rest } = draft
+      const payload: ThemeFile = {
+        ...rest,
+        ...(author && author.trim().length > 0 ? { author } : {}),
+        ...(description && description.trim().length > 0 ? { description } : {}),
+      }
       // Pass baseId as existingId only when editing an already-saved user
       // theme: it scopes the possible overwrite to that exact file, so a
       // rename that happens to collide with another user theme's name gets
       // suffixed instead of silently overwriting that other theme's file.
       // Forking a built-in or creating fresh has no existing file to protect.
-      const { id } = await window.piDesktop.themes.save(draft, isUserTheme ? baseId : undefined)
+      const { id } = await window.piDesktop.themes.save(payload, isUserTheme ? baseId : undefined)
       // The theme file write has already succeeded at this point, so commit
       // it to app state unconditionally before attempting the rename cleanup
       // below. If the old-id delete throws, the catch below must not run
       // first — that would leave a real, saved theme file on disk that the
       // registry, applied theme, and settings draft have no record of.
-      registerThemes([{ id, file: draft }])
+      registerThemes([{ id, file: payload }])
       applyTheme(id)
       setSettingsDraft({ theme: id })
       let warning: string | undefined
@@ -248,6 +258,37 @@ export function ThemeEditor({
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-4">
+            <div className="w-56">
+              <label className="mb-1 block text-xs text-dim" htmlFor="theme-editor-author">
+                Author (optional)
+              </label>
+              <input
+                id="theme-editor-author"
+                type="text"
+                value={draft.author ?? ''}
+                maxLength={MAX_THEME_AUTHOR_LENGTH}
+                placeholder="Shown in the gallery"
+                onChange={(event) => preview({ ...draft, author: event.target.value })}
+                className="w-full rounded-md border border-border-strong bg-surface px-3 py-1.5 text-sm text-primary focus:border-focus focus:outline-none"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="mb-1 block text-xs text-dim" htmlFor="theme-editor-description">
+                Description (optional)
+              </label>
+              <input
+                id="theme-editor-description"
+                type="text"
+                value={draft.description ?? ''}
+                maxLength={MAX_THEME_DESCRIPTION_LENGTH}
+                placeholder="One or two sentences about the theme"
+                onChange={(event) => preview({ ...draft, description: event.target.value })}
+                className="w-full rounded-md border border-border-strong bg-surface px-3 py-1.5 text-sm text-primary focus:border-focus focus:outline-none"
+              />
             </div>
           </div>
 

@@ -2,7 +2,8 @@ import { mkdir, readdir, readFile, writeFile, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isIPv6 } from 'node:net'
 import {
-  validateThemeFile, themeIdFromName, MAX_THEME_FILE_BYTES, type ThemeFile,
+  validateThemeFile, themeIdFromName, MAX_THEME_FILE_BYTES,
+  MAX_THEME_AUTHOR_LENGTH, MAX_THEME_DESCRIPTION_LENGTH, type ThemeFile,
 } from '../shared/theme/theme-file'
 import { BUILTIN_THEME_IDS } from '../shared/theme/builtin-ids'
 import type { GalleryTheme } from '../shared/ipc-contracts'
@@ -352,8 +353,19 @@ export async function installThemeFromUrl(
 const GALLERY_RAW_BASE =
   'https://raw.githubusercontent.com/FaqFirebase/pi-desktop-themes/main'
 const GALLERY_INDEX_URL = `${GALLERY_RAW_BASE}/index.json`
-const MAX_GALLERY_INDEX_BYTES = 262144
+// The index embeds each theme's full content for gallery preview cards, so
+// its cap is a multiple of the single-file cap rather than equal to it.
+const MAX_GALLERY_INDEX_BYTES = 1048576
 const GALLERY_FILE_PATH = /^themes\/[a-z0-9-]+\.json$/
+
+// Untrusted display string from the gallery index: usable only when it is a
+// non-empty string within the cap; anything else is treated as absent.
+function displayText(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (trimmed.length === 0 || trimmed.length > maxLength) return undefined
+  return trimmed
+}
 
 export async function fetchGalleryThemes(fetchFn: typeof fetch = fetch): Promise<GalleryTheme[]> {
   const response = await guardedFetch(GALLERY_INDEX_URL, fetchFn)
@@ -365,11 +377,32 @@ export async function fetchGalleryThemes(fetchFn: typeof fetch = fetch): Promise
   const themes: GalleryTheme[] = []
   for (const entry of parsed) {
     if (typeof entry !== 'object' || entry === null) continue
-    const { name, kind, file } = entry as Record<string, unknown>
+    const { name, kind, file, author, description, theme } = entry as Record<string, unknown>
     if (typeof name !== 'string' || name.trim().length === 0) continue
     if (kind !== 'dark' && kind !== 'light') continue
     if (typeof file !== 'string' || !GALLERY_FILE_PATH.test(file)) continue
-    themes.push({ name, kind, url: `${GALLERY_RAW_BASE}/${file}` })
+
+    // The embedded theme content and metadata come from the same untrusted
+    // index bytes as everything else, so they get the full theme validator
+    // (which also caps author/description). An entry whose embedded theme
+    // fails validation is kept, but without a preview — installing it still
+    // fetches and validates the canonical file, which is the real gate.
+    let embedded: ThemeFile | undefined
+    try {
+      embedded = theme === undefined ? undefined : validateThemeFile(theme)
+    } catch {
+      embedded = undefined
+    }
+    const galleryTheme: GalleryTheme = { name, kind, url: `${GALLERY_RAW_BASE}/${file}` }
+    if (embedded) galleryTheme.theme = embedded
+    // Metadata: the embedded theme's own fields win (the file is the source
+    // of truth); entry-level fields fill the gaps. Entry-level strings do not
+    // pass through the theme validator, so cap them here the same way.
+    galleryTheme.author = embedded?.author
+      ?? displayText(author, MAX_THEME_AUTHOR_LENGTH)
+    galleryTheme.description = embedded?.description
+      ?? displayText(description, MAX_THEME_DESCRIPTION_LENGTH)
+    themes.push(galleryTheme)
   }
   return themes
 }

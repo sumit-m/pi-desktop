@@ -795,6 +795,12 @@ export interface GalleryTheme {
   name: string
   kind: 'dark' | 'light'
   url: string
+  author?: string
+  description?: string
+  // Full validated theme content embedded in the gallery index, used to
+  // render a live preview card without fetching each theme file. Absent when
+  // the index predates embedding; the card then renders without a preview.
+  theme?: ThemeFile
 }
 
 export type ThemeGalleryResult =

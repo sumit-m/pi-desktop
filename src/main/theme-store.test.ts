@@ -330,10 +330,28 @@ test('fetchGalleryThemes returns valid entries with pinned first-party URLs', as
     { name: 'Ocean', kind: 'dark', file: 'themes/ocean.json' },
     { name: 'Ember Light', kind: 'light', file: 'themes/ember-light.json' },
   ]))
-  assert.deepEqual(themes, [
+  assert.deepEqual(themes.map(({ name, kind, url }) => ({ name, kind, url })), [
     { name: 'Ocean', kind: 'dark', url: 'https://raw.githubusercontent.com/FaqFirebase/pi-desktop-themes/main/themes/ocean.json' },
     { name: 'Ember Light', kind: 'light', url: 'https://raw.githubusercontent.com/FaqFirebase/pi-desktop-themes/main/themes/ember-light.json' },
   ])
+})
+
+test('fetchGalleryThemes validates embedded theme content and metadata', async () => {
+  const embedded = { ...theme('Ocean'), author: 'Pi Desktop', description: 'Calm blues.' }
+  const themes = await fetchGalleryThemes(jsonFetch([
+    { name: 'Ocean', kind: 'dark', file: 'themes/ocean.json', theme: embedded },
+    // Invalid embedded theme: the entry survives without a preview.
+    { name: 'Broken', kind: 'dark', file: 'themes/broken.json', theme: { $schema: 'nope' } },
+    // Entry-level metadata fallback, with the oversized value dropped.
+    { name: 'Meta', kind: 'light', file: 'themes/meta.json', author: 'Someone', description: 'x'.repeat(300) },
+  ]))
+  assert.equal(themes.length, 3)
+  assert.equal(themes[0].theme?.seeds.app, embedded.seeds.app)
+  assert.equal(themes[0].author, 'Pi Desktop')
+  assert.equal(themes[0].description, 'Calm blues.')
+  assert.equal(themes[1].theme, undefined)
+  assert.equal(themes[2].author, 'Someone')
+  assert.equal(themes[2].description, undefined)
 })
 
 test('fetchGalleryThemes drops malformed and path-traversal entries', async () => {
