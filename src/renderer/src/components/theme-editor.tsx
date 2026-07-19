@@ -157,12 +157,16 @@ export function ThemeEditor({
     try {
       // The validator treats empty metadata strings as errors ("omit instead"),
       // and a user who typed then cleared a field leaves '' in the draft — so
-      // strip blank author/description before the payload crosses IPC.
+      // strip blank author/description before the payload crosses IPC. Trim the
+      // kept values too, so the in-session registry copy below matches the
+      // trimmed form the main-process validator persists to disk.
       const { author, description, ...rest } = draft
+      const trimmedAuthor = author?.trim()
+      const trimmedDescription = description?.trim()
       const payload: ThemeFile = {
         ...rest,
-        ...(author && author.trim().length > 0 ? { author } : {}),
-        ...(description && description.trim().length > 0 ? { description } : {}),
+        ...(trimmedAuthor ? { author: trimmedAuthor } : {}),
+        ...(trimmedDescription ? { description: trimmedDescription } : {}),
       }
       // Pass baseId as existingId only when editing an already-saved user
       // theme: it scopes the possible overwrite to that exact file, so a

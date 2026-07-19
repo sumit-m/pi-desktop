@@ -367,6 +367,10 @@ const GALLERY_FILE_PATH = /^themes\/[a-z0-9-]+(?:\/theme)?\.json$/
 // already committed under themes/<slug>/ in the pinned repo.
 const GALLERY_SCREENSHOT_PATH = /^themes\/[a-z0-9-]+\/screenshot\.(?:png|jpe?g|webp)$/
 const MAX_GALLERY_IMAGE_BYTES = 2097152
+// Content types allowed for a fetched screenshot. An allowlist, not an
+// `image/` prefix: it keeps out image/svg+xml (SVG can carry script) and any
+// other exotic image type even if the pinned path check were ever loosened.
+const GALLERY_IMAGE_CONTENT_TYPES = ['image/png', 'image/jpeg', 'image/webp']
 
 // Untrusted display string from the gallery index: usable only when it is a
 // non-empty string within the cap; anything else is treated as absent.
@@ -467,9 +471,9 @@ export async function fetchGalleryImage(
   }
   const response = await guardedFetch(url, fetchFn)
   if (!response.ok) throw new Error(`screenshot download failed: ${response.status}`)
-  const contentType = response.headers.get('content-type') ?? ''
-  if (!contentType.startsWith('image/')) {
-    throw new Error(`screenshot is not an image (content-type: ${contentType || 'none'})`)
+  const contentType = (response.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase()
+  if (!GALLERY_IMAGE_CONTENT_TYPES.includes(contentType)) {
+    throw new Error(`screenshot is not an allowed image type (content-type: ${contentType || 'none'})`)
   }
   const bytes = await readCappedBytes(response, MAX_GALLERY_IMAGE_BYTES)
   return { dataUri: `data:${contentType};base64,${Buffer.from(bytes).toString('base64')}` }

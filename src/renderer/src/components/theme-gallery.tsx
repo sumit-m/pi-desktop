@@ -211,44 +211,47 @@ export function ThemeGallery({ onClose, onInstalled }: ThemeGalleryProps): React
                 <>
                   <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {themes.slice(0, visibleCount).map((theme) => (
-                      <li key={theme.url}>
+                      <li
+                        key={theme.url}
+                        className="relative flex flex-col gap-2 rounded-md border border-border bg-app/40 p-3 transition-colors hover:border-border-strong"
+                      >
+                        {/* Full-card overlay button opens the detail view; the
+                            Install button below stacks above it, so both are
+                            real, keyboard-reachable controls with no nesting. */}
                         <button
+                          type="button"
                           onClick={() => setDetail(theme)}
-                          className="flex w-full flex-col gap-2 rounded-md border border-border bg-app/40 p-3 text-left transition-colors hover:border-border-strong"
-                        >
-                          {theme.theme && <ThemePreview theme={theme.theme} />}
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="truncate text-sm font-medium text-primary">{theme.name}</span>
-                                <span className="shrink-0 rounded-sm bg-card px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted">
-                                  {theme.kind}
-                                </span>
-                              </div>
-                              {theme.author && (
-                                <div className="mt-0.5 flex items-center gap-1 text-xs text-dim">
-                                  <User size={10} />
-                                  <span className="truncate">{theme.author}</span>
-                                </div>
-                              )}
+                          aria-label={`View ${theme.name} details`}
+                          className="absolute inset-0 z-10 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
+                        />
+                        {theme.theme && <ThemePreview theme={theme.theme} />}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate text-sm font-medium text-primary">{theme.name}</span>
+                              <span className="shrink-0 rounded-sm bg-card px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted">
+                                {theme.kind}
+                              </span>
                             </div>
-                            <span
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                void install(theme)
-                              }}
-                              role="button"
-                              tabIndex={0}
-                              aria-disabled={installingUrl === theme.url || installedUrls.has(theme.url)}
-                              className="shrink-0 rounded-md border border-border-strong px-3 py-1 text-sm text-muted hover:bg-surface-hover transition-colors aria-disabled:pointer-events-none aria-disabled:opacity-60"
-                            >
-                              {installButtonLabel(theme)}
-                            </span>
+                            {theme.author && (
+                              <div className="mt-0.5 flex items-center gap-1 text-xs text-dim">
+                                <User size={10} />
+                                <span className="truncate">{theme.author}</span>
+                              </div>
+                            )}
                           </div>
-                          {theme.description && (
-                            <p className="line-clamp-2 text-xs leading-relaxed text-muted">{theme.description}</p>
-                          )}
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => void install(theme)}
+                            disabled={installingUrl === theme.url || installedUrls.has(theme.url)}
+                            className="relative z-20 shrink-0 rounded-md border border-border-strong px-3 py-1 text-sm text-muted hover:bg-surface-hover transition-colors disabled:pointer-events-none disabled:opacity-60"
+                          >
+                            {installButtonLabel(theme)}
+                          </button>
+                        </div>
+                        {theme.description && (
+                          <p className="line-clamp-2 text-xs leading-relaxed text-muted">{theme.description}</p>
+                        )}
                       </li>
                     ))}
                   </ul>

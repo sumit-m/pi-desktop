@@ -410,7 +410,16 @@ test('fetchGalleryImage pins the URL and requires an image response', async () =
   // Right path, but the response is not an image.
   const htmlFetch = (async () =>
     new Response('<html>', { status: 200, headers: { 'content-type': 'text/html' } })) as typeof fetch
-  await assert.rejects(fetchGalleryImage(good, htmlFetch), /not an image/)
+  await assert.rejects(fetchGalleryImage(good, htmlFetch), /not an allowed image type/)
+  // SVG is an image type but can carry script, so the allowlist excludes it.
+  const svgFetch = (async () =>
+    new Response('<svg/>', { status: 200, headers: { 'content-type': 'image/svg+xml' } })) as typeof fetch
+  await assert.rejects(fetchGalleryImage(good, svgFetch), /not an allowed image type/)
+  // A charset parameter on the content-type must not defeat the allowlist.
+  const paramFetch = (async () =>
+    new Response(pngBytes, { status: 200, headers: { 'content-type': 'image/png; charset=binary' } })) as typeof fetch
+  const { dataUri: paramUri } = await fetchGalleryImage(good, paramFetch)
+  assert.match(paramUri, /^data:image\/png;base64,/)
 })
 
 test('fetchGalleryImage caps oversized screenshots', async () => {
