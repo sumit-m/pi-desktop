@@ -1,11 +1,16 @@
 import { useAppStore } from '../store'
 import { useState, useEffect, useRef } from 'react'
 import type { AppSettings, PermissionMode, CouncilConfig } from '../../../shared/ipc-contracts'
+import type { ThemeFile } from '../../../shared/theme/theme-file'
 import { Settings, Save, RotateCcw, FolderOpen, Check, ChevronDown } from 'lucide-react'
 import { DEFAULT_SETTINGS } from '../../../shared/default-settings'
 import { PermissionSelector } from './permission-selector'
-import { applyTheme } from '../utils/theme'
+import { applyTheme, getRegisteredThemes, registerThemes, setUserThemes } from '../utils/theme'
+import { BUILTIN_THEME_IDS } from '../themes'
 import { CustomModelsEditor } from './custom-models-editor'
+import { ThemeEditor } from './theme-editor'
+import { ThemeGallery } from './theme-gallery'
+import type { UserThemeRecord } from '../../../shared/ipc-contracts'
 import {
   MIN_TIMEOUT_SECONDS as COUNCIL_MIN_TIMEOUT,
   MAX_TIMEOUT_SECONDS as COUNCIL_MAX_TIMEOUT,
@@ -24,6 +29,14 @@ export function SettingsPanel(): React.JSX.Element {
 
   const [piPath, setPiPath] = useState(draft0.piExecutablePath ?? settings?.piExecutablePath ?? DEFAULT_SETTINGS.piExecutablePath)
   const [theme, setTheme] = useState(draft0.theme ?? settings?.theme ?? DEFAULT_SETTINGS.theme)
+  const [themeActionError, setThemeActionError] = useState<string | null>(null)
+  const [themeEditorState, setThemeEditorState] = useState<{
+    baseTheme: ThemeFile
+    baseId: string
+    isUserTheme: boolean
+  } | null>(null)
+  const [installUrl, setInstallUrl] = useState('')
+  const [galleryOpen, setGalleryOpen] = useState(false)
   const [fontSize, setFontSize] = useState(draft0.fontSize ?? settings?.fontSize ?? DEFAULT_SETTINGS.fontSize)
   const [terminalFontSize, setTerminalFontSize] = useState(draft0.terminalFontSize ?? settings?.terminalFontSize ?? DEFAULT_SETTINGS.terminalFontSize)
   const [codeEditorFontSize, setCodeEditorFontSize] = useState(draft0.codeEditorFontSize ?? settings?.codeEditorFontSize ?? DEFAULT_SETTINGS.codeEditorFontSize)
@@ -121,10 +134,125 @@ export function SettingsPanel(): React.JSX.Element {
     }
   }
 
+  const resolveEffectiveThemeId = (themeId: string): string => {
+    if (themeId !== 'system') return themeId
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  }
+
+  const isBuiltinTheme = (themeId: string): boolean => (BUILTIN_THEME_IDS as string[]).includes(themeId)
+  const isEditableUserTheme = theme !== 'system' && !isBuiltinTheme(theme)
+
+  const openCreateThemeEditor = () => {
+    const effectiveId = resolveEffectiveThemeId(theme)
+    const registered = getRegisteredThemes()
+    const baseTheme =
+      registered.find((t) => t.id === effectiveId)?.file ??
+      registered.find((t) => t.id === 'dark')!.file
+    setThemeEditorState({ baseTheme, baseId: effectiveId, isUserTheme: false })
+  }
+
+  const openEditThemeEditor = () => {
+    const baseTheme = getRegisteredThemes().find((t) => t.id === theme)?.file
+    if (!baseTheme) {
+      setThemeActionError('Could not find the current theme to edit')
+      return
+    }
+    setThemeEditorState({ baseTheme, baseId: theme, isUserTheme: true })
+  }
+
+  const handleThemeEditorSaved = async (id: string, warning?: string) => {
+    setTheme(id)
+    // A warning is a non-fatal post-save problem (rename cleanup failure).
+    // It has to live in the panel's themeActionError, not the editor's own
+    // saveError: the editor unmounts in this same commit, so only state
+    // owned here survives long enough to render.
+    setThemeActionError(warning ?? null)
+    setThemeEditorState(null)
+    // Reconcile the registry against disk so a rename drops the old id from
+    // the dropdown (the editor already registered + applied the new one).
+    const { themes, warnings } = await window.piDesktop.themes.list()
+    for (const w of warnings) console.warn(w)
+    setUserThemes(themes)
+  }
+
+  const handleImportTheme = async () => {
+    const result = await window.piDesktop.themes.import()
+    if (result.ok) {
+      registerThemes([result.theme])
+      applyTheme(result.theme.id)
+      setTheme(result.theme.id)
+      setSettingsDraft({ theme: result.theme.id })
+      setThemeActionError(null)
+    } else if (!('canceled' in result)) {
+      setThemeActionError(result.error)
+    }
+  }
+
+  const handleExportTheme = async () => {
+    const effectiveThemeId = resolveEffectiveThemeId(theme)
+    const currentThemeFile = getRegisteredThemes().find((t) => t.id === effectiveThemeId)?.file
+    if (!currentThemeFile) {
+      setThemeActionError('Could not find the current theme to export')
+      return
+    }
+    const result = await window.piDesktop.themes.export(currentThemeFile)
+    if (result.ok) {
+      setThemeActionError(null)
+    } else if (!('canceled' in result)) {
+      setThemeActionError(result.error)
+    }
+  }
+
+  const handleInstallFromUrl = async () => {
+    if (!installUrl.trim()) return
+    const result = await window.piDesktop.themes.installFromUrl(installUrl.trim())
+    if (result.ok) {
+      registerThemes([result.theme])
+      applyTheme(result.theme.id)
+      setTheme(result.theme.id)
+      setSettingsDraft({ theme: result.theme.id })
+      setThemeActionError(null)
+      setInstallUrl('')
+    } else if (!('canceled' in result)) {
+      setThemeActionError(result.error)
+    }
+  }
+  const handleGalleryInstalled = (installed: UserThemeRecord) => {
+    registerThemes([installed])
+    applyTheme(installed.id)
+    setTheme(installed.id)
+    setSettingsDraft({ theme: installed.id })
+    setThemeActionError(null)
+  }
+
+  const handleDeleteTheme = async () => {
+    const themeName = getRegisteredThemes().find((t) => t.id === theme)?.file.name ?? theme
+    // Confirm before destructive action via the app's themed dialog, matching
+    // the pattern used for session delete (context-menu.tsx) rather than the
+    // native window.confirm. Deleting a theme file has no undo.
+    const ok = await useAppStore.getState().requestConfirm({
+      title: 'Delete theme',
+      message: `Delete theme "${themeName}"? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    })
+    if (!ok) return
+    await window.piDesktop.themes.delete(theme)
+    const { themes, warnings } = await window.piDesktop.themes.list()
+    for (const warning of warnings) {
+      console.warn(warning)
+    }
+    setUserThemes(themes)
+    setTheme('dark')
+    applyTheme('dark')
+    setSettingsDraft({ theme: 'dark' })
+    setThemeActionError(null)
+  }
+
   const handleSave = async () => {
     const updated: Partial<AppSettings> = {
       piExecutablePath: piPath,
-      theme: theme as AppSettings['theme'],
+      theme,
       fontSize,
       terminalFontSize,
       codeEditorFontSize,
@@ -203,8 +331,8 @@ export function SettingsPanel(): React.JSX.Element {
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Settings size={20} className="text-neutral-400" />
-            <h1 className="text-lg font-semibold text-neutral-200">Settings</h1>
+            <Settings size={20} className="text-muted" />
+            <h1 className="text-lg font-semibold text-primary">Settings</h1>
           </div>
         </div>
 
@@ -219,11 +347,11 @@ export function SettingsPanel(): React.JSX.Element {
                   setPiPath(e.target.value)
                   setSettingsDraft({ piExecutablePath: e.target.value })
                 }}
-                className="flex-1 rounded-md border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 focus:border-blue-500 focus:outline-none"
+                className="flex-1 rounded-md border border-border-strong bg-surface px-3 py-1.5 text-sm text-primary focus:border-focus focus:outline-none"
               />
               <button
                 onClick={handleSelectPath}
-                className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm text-neutral-400 hover:bg-neutral-800 transition-colors"
+                className="rounded-md border border-border-strong px-3 py-1.5 text-sm text-muted hover:bg-surface-hover transition-colors"
               >
                 <FolderOpen size={14} />
               </button>
@@ -238,26 +366,92 @@ export function SettingsPanel(): React.JSX.Element {
               <select
                 value={theme}
                 onChange={(e) => {
-                  const newTheme = e.target.value as AppSettings['theme']
+                  const newTheme = e.target.value
                   setTheme(newTheme)
                   applyTheme(newTheme)
                   setSettingsDraft({ theme: newTheme })
                 }}
-                className="w-full appearance-none rounded-md border border-neutral-700 bg-neutral-900 py-1.5 pl-3 pr-9 text-sm text-neutral-200 hover:border-neutral-600 focus:border-blue-500 focus:outline-none"
+                className="w-full appearance-none rounded-md border border-border-strong bg-surface py-1.5 pl-3 pr-9 text-sm text-primary hover:border-border-strong-hover focus:border-focus focus:outline-none"
               >
-                <option value="dark">Dark</option>
-                <option value="light">Light</option>
                 <option value="system">System</option>
-                <option value="nord">Nord</option>
-                <option value="gruvbox">Gruvbox</option>
-                <option value="breeze-dark">Breeze Dark (Kate)</option>
-                <option value="breeze-light">Breeze Light (Kate)</option>
-                <option value="breeze-claudius">Breeze Claudius</option>
+                {getRegisteredThemes().map((registeredTheme) => (
+                  <option key={registeredTheme.id} value={registeredTheme.id}>
+                    {registeredTheme.file.name}
+                  </option>
+                ))}
               </select>
               <ChevronDown
                 size={14}
-                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500"
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-dim"
               />
+            </div>
+          </SettingsRow>
+
+          <SettingsRow label="Custom Theme" description="Fork the current theme or edit one you created">
+            <div className="flex gap-2">
+              <button
+                onClick={openCreateThemeEditor}
+                className="rounded-md border border-border-strong px-3 py-1.5 text-sm text-muted hover:bg-surface-hover transition-colors"
+              >
+                Create theme
+              </button>
+              {isEditableUserTheme && (
+                <button
+                  onClick={openEditThemeEditor}
+                  className="rounded-md border border-border-strong px-3 py-1.5 text-sm text-muted hover:bg-surface-hover transition-colors"
+                >
+                  Edit theme
+                </button>
+              )}
+            </div>
+          </SettingsRow>
+
+          <SettingsRow label="Theme Actions" description="Import, export, or install a theme from a URL" stack>
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <button
+                  onClick={handleImportTheme}
+                  className="rounded-md border border-border-strong px-3 py-1.5 text-sm text-muted hover:bg-surface-hover transition-colors"
+                >
+                  Import
+                </button>
+                <button
+                  onClick={handleExportTheme}
+                  className="rounded-md border border-border-strong px-3 py-1.5 text-sm text-muted hover:bg-surface-hover transition-colors"
+                >
+                  Export
+                </button>
+                <button
+                  onClick={() => setGalleryOpen(true)}
+                  className="rounded-md border border-border-strong px-3 py-1.5 text-sm text-muted hover:bg-surface-hover transition-colors"
+                >
+                  Browse gallery
+                </button>
+                {!isBuiltinTheme(theme) && (
+                  <button
+                    onClick={handleDeleteTheme}
+                    className="rounded-md border border-border-strong px-3 py-1.5 text-sm text-muted hover:bg-surface-hover transition-colors"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={installUrl}
+                  onChange={(e) => setInstallUrl(e.target.value)}
+                  placeholder="https://example.com/theme.json"
+                  className="flex-1 rounded-md border border-border-strong bg-surface px-3 py-1.5 text-sm text-primary focus:border-focus focus:outline-none"
+                />
+                <button
+                  onClick={handleInstallFromUrl}
+                  className="shrink-0 rounded-md border border-border-strong px-3 py-1.5 text-sm text-muted hover:bg-surface-hover transition-colors"
+                >
+                  Install
+                </button>
+              </div>
+              {themeActionError && <p className="text-xs text-error">{themeActionError}</p>}
             </div>
           </SettingsRow>
 
@@ -274,9 +468,9 @@ export function SettingsPanel(): React.JSX.Element {
                   document.documentElement.style.fontSize = `${size}px`
                   setSettingsDraft({ fontSize: size })
                 }}
-                className="flex-1 accent-blue-500"
+                className="flex-1 accent-accent"
               />
-              <span className="w-8 text-right text-sm text-neutral-400">{fontSize}</span>
+              <span className="w-8 text-right text-sm text-muted">{fontSize}</span>
             </div>
           </SettingsRow>
 
@@ -292,9 +486,9 @@ export function SettingsPanel(): React.JSX.Element {
                   setTerminalFontSize(size)
                   setSettingsDraft({ terminalFontSize: size })
                 }}
-                className="flex-1 accent-blue-500"
+                className="flex-1 accent-accent"
               />
-              <span className="w-8 text-right text-sm text-neutral-400">{terminalFontSize}</span>
+              <span className="w-8 text-right text-sm text-muted">{terminalFontSize}</span>
             </div>
           </SettingsRow>
 
@@ -310,9 +504,9 @@ export function SettingsPanel(): React.JSX.Element {
                   setCodeEditorFontSize(size)
                   setSettingsDraft({ codeEditorFontSize: size })
                 }}
-                className="flex-1 accent-blue-500"
+                className="flex-1 accent-accent"
               />
-              <span className="w-8 text-right text-sm text-neutral-400">{codeEditorFontSize}</span>
+              <span className="w-8 text-right text-sm text-muted">{codeEditorFontSize}</span>
             </div>
           </SettingsRow>
         </SettingsSection>
@@ -396,7 +590,7 @@ export function SettingsPanel(): React.JSX.Element {
                       <label
                         key={id}
                         className={`flex items-center gap-2 text-sm ${
-                          detected ? 'text-neutral-200' : 'text-neutral-500'
+                          detected ? 'text-primary' : 'text-dim'
                         }`}
                       >
                         <input
@@ -408,11 +602,11 @@ export function SettingsPanel(): React.JSX.Element {
                               members: { ...settings.council.members, [id]: e.target.checked },
                             })
                           }
-                          className="accent-blue-500 disabled:opacity-50"
+                          className="accent-accent disabled:opacity-50"
                         />
                         <span>
                           {label}
-                          {!detected && <span className="text-neutral-600"> (not detected)</span>}
+                          {!detected && <span className="text-faint"> (not detected)</span>}
                         </span>
                       </label>
                     )
@@ -432,14 +626,14 @@ export function SettingsPanel(): React.JSX.Element {
                         consensusMode: e.target.value as CouncilConfig['consensusMode'],
                       })
                     }
-                    className="w-full appearance-none rounded-md border border-neutral-700 bg-neutral-900 py-1.5 pl-3 pr-9 text-sm text-neutral-200 hover:border-neutral-600 focus:border-blue-500 focus:outline-none"
+                    className="w-full appearance-none rounded-md border border-border-strong bg-surface py-1.5 pl-3 pr-9 text-sm text-primary hover:border-border-strong-hover focus:border-focus focus:outline-none"
                   >
                     <option value="arbiter">Arbiter merge (fast)</option>
                     <option value="debate">One debate round (slower, ~2x cost)</option>
                   </select>
                   <ChevronDown
                     size={14}
-                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500"
+                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-dim"
                   />
                 </div>
               </SettingsRow>
@@ -464,7 +658,7 @@ export function SettingsPanel(): React.JSX.Element {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
                   }}
-                  className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-md border border-border-strong bg-surface px-3 py-1.5 text-sm text-primary focus:border-focus focus:outline-none"
                 />
               </SettingsRow>
             </>
@@ -480,14 +674,14 @@ export function SettingsPanel(): React.JSX.Element {
         <div className="mt-8 flex gap-3">
           <button
             onClick={handleSave}
-            className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-500 transition-colors"
+            className="flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm text-white hover:bg-accent-hover transition-colors"
           >
             {saved ? <Check size={14} /> : <Save size={14} />}
             {saved ? 'Saved!' : 'Save Settings'}
           </button>
           <button
             onClick={handleReset}
-            className="flex items-center gap-2 rounded-md border border-neutral-700 px-4 py-2 text-sm text-neutral-400 hover:bg-neutral-800 transition-colors"
+            className="flex items-center gap-2 rounded-md border border-border-strong px-4 py-2 text-sm text-muted hover:bg-surface-hover transition-colors"
           >
             <RotateCcw size={14} />
             Reset to Defaults
@@ -495,14 +689,31 @@ export function SettingsPanel(): React.JSX.Element {
         </div>
       </div>
 
+      {galleryOpen && (
+        <ThemeGallery
+          onClose={() => setGalleryOpen(false)}
+          onInstalled={handleGalleryInstalled}
+        />
+      )}
+
+      {themeEditorState && (
+        <ThemeEditor
+          baseTheme={themeEditorState.baseTheme}
+          baseId={themeEditorState.baseId}
+          isUserTheme={themeEditorState.isUserTheme}
+          onClose={() => setThemeEditorState(null)}
+          onSaved={handleThemeEditorSaved}
+        />
+      )}
+
       {/* Council enable confirmation dialog */}
       {showCouncilWarning && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-lg border border-neutral-700 bg-neutral-900 p-6 shadow-xl">
-            <h3 className="mb-3 text-base font-semibold text-neutral-100">
+          <div className="w-full max-w-md rounded-lg border border-border-strong bg-surface p-6 shadow-xl">
+            <h3 className="mb-3 text-base font-semibold text-primary">
               Enable council planning?
             </h3>
-            <p className="mb-6 text-sm text-neutral-400">
+            <p className="mb-6 text-sm text-muted">
               Each run spawns Claude and Codex in addition to Pi. This can significantly increase
               token usage and credit/API costs. Only enable this if you are comfortable with the
               extra spend.
@@ -510,7 +721,7 @@ export function SettingsPanel(): React.JSX.Element {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowCouncilWarning(false)}
-                className="rounded-md border border-neutral-700 px-4 py-2 text-sm text-neutral-400 hover:bg-neutral-800 transition-colors"
+                className="rounded-md border border-border-strong px-4 py-2 text-sm text-muted hover:bg-surface-hover transition-colors"
               >
                 Cancel
               </button>
@@ -519,7 +730,7 @@ export function SettingsPanel(): React.JSX.Element {
                   setShowCouncilWarning(false)
                   void saveCouncil({ enabled: true })
                 }}
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-500 transition-colors"
+                className="rounded-md bg-accent px-4 py-2 text-sm text-white hover:bg-accent-hover transition-colors"
               >
                 Enable
               </button>
@@ -542,8 +753,8 @@ function SettingsSection({
 }): React.JSX.Element {
   return (
     <div className="mb-8">
-      <h2 className="mb-4 text-sm font-medium text-neutral-300">{title}</h2>
-      <div className="space-y-4 rounded-lg border border-neutral-800 bg-neutral-900/50 p-4">
+      <h2 className="mb-4 text-sm font-medium text-secondary">{title}</h2>
+      <div className="space-y-4 rounded-lg border border-border bg-surface/50 p-4">
         {children}
       </div>
     </div>
@@ -554,16 +765,32 @@ function SettingsRow({
   label,
   description,
   children,
+  stack = false,
 }: {
   label: string
   description: string
   children: React.ReactNode
+  // Controls that are wider than the fixed control column (e.g. a URL input
+  // beside a button) render below the label at full width instead of being
+  // crammed into the right-hand w-64 column.
+  stack?: boolean
 }): React.JSX.Element {
+  if (stack) {
+    return (
+      <div className="flex flex-col gap-2">
+        <div>
+          <div className="text-sm text-primary">{label}</div>
+          <div className="text-xs text-dim">{description}</div>
+        </div>
+        <div>{children}</div>
+      </div>
+    )
+  }
   return (
     <div className="flex items-center justify-between gap-4">
       <div>
-        <div className="text-sm text-neutral-200">{label}</div>
-        <div className="text-xs text-neutral-500">{description}</div>
+        <div className="text-sm text-primary">{label}</div>
+        <div className="text-xs text-dim">{description}</div>
       </div>
       <div className="w-64">{children}</div>
     </div>
@@ -581,7 +808,7 @@ function Toggle({
     <button
       onClick={() => onChange(!checked)}
       className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-        checked ? 'bg-blue-600' : 'bg-neutral-700'
+        checked ? 'bg-accent' : 'bg-elevated'
       }`}
     >
       <span

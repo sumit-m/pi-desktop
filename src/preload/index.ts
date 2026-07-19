@@ -35,7 +35,12 @@ import type {
   OpenDialogOptions,
   PromptImage,
   ActivityStatsResult,
+  ThemesListResult,
+  ThemeImportResult,
+  ThemeExportResult,
+  ThemeGalleryResult,
 } from '../shared/ipc-contracts'
+import type { ThemeFile } from '../shared/theme/theme-file'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 
 // ─── Type Definitions for the Exposed API ────────────────────────────────────
@@ -98,7 +103,17 @@ interface PiDesktopAPI {
   settings: {
     getAll(): Promise<AppSettings>
     save(settings: Partial<AppSettings>): Promise<AppSettings>
-    getTheme(): Promise<string>
+  }
+
+  // Themes (user-created theme storage)
+  themes: {
+    list(): Promise<ThemesListResult>
+    save(file: ThemeFile, existingId?: string): Promise<{ id: string }>
+    delete(id: string): Promise<void>
+    installFromUrl(url: string): Promise<ThemeImportResult>
+    export(file: ThemeFile): Promise<ThemeExportResult>
+    import(): Promise<ThemeImportResult>
+    gallery(): Promise<ThemeGalleryResult>
   }
 
   // Workspace management
@@ -276,7 +291,16 @@ const api: PiDesktopAPI = {
   settings: {
     getAll: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ALL),
     save: (settings) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SAVE, settings),
-    getTheme: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_THEME),
+  },
+
+  themes: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.THEMES_LIST),
+    save: (file, existingId) => ipcRenderer.invoke(IPC_CHANNELS.THEMES_SAVE, file, existingId),
+    delete: (id) => ipcRenderer.invoke(IPC_CHANNELS.THEMES_DELETE, id),
+    installFromUrl: (url) => ipcRenderer.invoke(IPC_CHANNELS.THEMES_INSTALL_URL, url),
+    export: (file) => ipcRenderer.invoke(IPC_CHANNELS.THEMES_EXPORT, file),
+    import: () => ipcRenderer.invoke(IPC_CHANNELS.THEMES_IMPORT),
+    gallery: () => ipcRenderer.invoke(IPC_CHANNELS.THEMES_GALLERY_LIST),
   },
 
   workspace: {

@@ -59,7 +59,7 @@ export function StatusBar(): React.JSX.Element {
   }, [activeWorkspace?.id])
 
   return (
-    <div className="flex h-7 items-center justify-between border-t border-neutral-800 bg-neutral-950 px-3 text-xs">
+    <div className="flex h-7 items-center justify-between border-t border-border bg-app px-3 text-xs">
       {/* Left section */}
       <div className="flex items-center gap-3">
         {/* Pi Status */}
@@ -67,20 +67,20 @@ export function StatusBar(): React.JSX.Element {
           <div
             className={clsx(
               'h-1.5 w-1.5 rounded-full',
-              piStatus === 'running' && 'bg-emerald-500',
-              piStatus === 'starting' && 'bg-yellow-500 animate-pulse',
-              piStatus === 'error' && 'bg-red-500',
-              piStatus === 'stopped' && 'bg-neutral-600'
+              piStatus === 'running' && 'bg-success',
+              piStatus === 'starting' && 'bg-warning animate-pulse',
+              piStatus === 'error' && 'bg-error',
+              piStatus === 'stopped' && 'bg-elevated'
             )}
           />
-          <span className="text-neutral-500">
+          <span className="text-dim">
             {piStatus === 'running' ? `Pi running (PID: ${piPid})` : `Pi ${piStatus}`}
           </span>
         </div>
 
         {/* Git branch of the active workspace */}
         {gitBranch && (
-          <div className="flex items-center gap-1 text-neutral-500" title={`Git branch: ${gitBranch}`}>
+          <div className="flex items-center gap-1 text-dim" title={`Git branch: ${gitBranch}`}>
             <GitBranch size={11} />
             <span>{gitBranch}</span>
           </div>
@@ -88,7 +88,7 @@ export function StatusBar(): React.JSX.Element {
 
         {/* Streaming indicator */}
         {isStreaming && (
-          <div className="flex items-center gap-1 text-blue-400">
+          <div className="flex items-center gap-1 text-accent-fg">
             <Loader2 size={10} className="animate-spin" />
             <span>streaming</span>
           </div>
@@ -96,12 +96,12 @@ export function StatusBar(): React.JSX.Element {
 
         {/* Queue indicators */}
         {pendingSteering.length > 0 && (
-          <span className="text-yellow-500">
+          <span className="text-warning">
             {pendingSteering.length} steer queued
           </span>
         )}
         {pendingFollowUp.length > 0 && (
-          <span className="text-yellow-500">
+          <span className="text-warning">
             {pendingFollowUp.length} follow-up queued
           </span>
         )}
@@ -117,7 +117,7 @@ export function StatusBar(): React.JSX.Element {
 
         {/* Token usage */}
         {sessionStats?.contextUsage && (
-          <div className="flex items-center gap-1 text-neutral-500" title={`Context: ${sessionStats.contextUsage.tokens?.toLocaleString() ?? '?'} / ${sessionStats.contextUsage.contextWindow.toLocaleString()} tokens`}>
+          <div className="flex items-center gap-1 text-dim" title={`Context: ${sessionStats.contextUsage.tokens?.toLocaleString() ?? '?'} / ${sessionStats.contextUsage.contextWindow.toLocaleString()} tokens`}>
             <Layers size={10} />
             <span>
               {Number.isFinite(sessionStats.contextUsage.percent)
@@ -132,7 +132,7 @@ export function StatusBar(): React.JSX.Element {
           <button
             onClick={() => compactContext()}
             disabled={isCompacting}
-            className="flex items-center gap-1 text-neutral-500 hover:text-neutral-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-1 text-dim hover:text-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="Compact context — summarize the conversation to free up space"
           >
             {isCompacting ? (
@@ -146,7 +146,7 @@ export function StatusBar(): React.JSX.Element {
 
         {/* Cost */}
         {sessionStats?.cost !== undefined && sessionStats.cost > 0 && (
-          <div className="flex items-center gap-1 text-neutral-500">
+          <div className="flex items-center gap-1 text-dim">
             <DollarSign size={10} />
             <span>${sessionStats.cost.toFixed(2)}</span>
           </div>
@@ -155,7 +155,7 @@ export function StatusBar(): React.JSX.Element {
         {/* Toggle sidebar */}
         <button
           onClick={toggleSidebar}
-          className="rounded p-0.5 text-neutral-500 hover:text-neutral-300 transition-colors"
+          className="rounded p-0.5 text-dim hover:text-secondary transition-colors"
           title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
           aria-label={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
         >
@@ -167,7 +167,7 @@ export function StatusBar(): React.JSX.Element {
           onClick={toggleTerminal}
           className={clsx(
             'rounded p-0.5 transition-colors',
-            terminalOpen ? 'text-blue-400' : 'text-neutral-500 hover:text-neutral-300'
+            terminalOpen ? 'text-accent-fg' : 'text-dim hover:text-secondary'
           )}
           title={terminalOpen ? 'Hide terminal' : 'Show terminal'}
           aria-label={terminalOpen ? 'Hide terminal' : 'Show terminal'}
@@ -178,7 +178,7 @@ export function StatusBar(): React.JSX.Element {
         {/* Settings */}
         <button
           onClick={() => setCurrentView('settings')}
-          className="rounded p-0.5 text-neutral-500 hover:text-neutral-300 transition-colors"
+          className="rounded p-0.5 text-dim hover:text-secondary transition-colors"
           title="Settings"
           aria-label="Settings"
         >
@@ -252,7 +252,7 @@ function ModelSelector(): React.JSX.Element {
     <div ref={ref} className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1 text-neutral-500 hover:text-neutral-300 transition-colors"
+        className="flex items-center gap-1 text-dim hover:text-secondary transition-colors"
         title="Select model (Ctrl+P to cycle)"
       >
         <Cpu size={10} />
@@ -264,13 +264,13 @@ function ModelSelector(): React.JSX.Element {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute bottom-full right-0 mb-1 w-72 rounded-lg border border-neutral-700 bg-neutral-900 shadow-xl shadow-black/40 py-1 animate-fade-in z-50">
+        <div className="absolute bottom-full right-0 mb-1 w-72 rounded-lg border border-border-strong bg-surface shadow-xl shadow-black/40 py-1 animate-fade-in z-50">
           {/* Current model */}
           {currentModel && (
-            <div className="px-3 py-2 border-b border-neutral-800">
-              <div className="text-xs text-neutral-400">Current</div>
-              <div className="text-sm text-neutral-200 font-medium">{currentModel.name}</div>
-              <div className="text-xs text-neutral-500 mt-0.5">
+            <div className="px-3 py-2 border-b border-border">
+              <div className="text-xs text-muted">Current</div>
+              <div className="text-sm text-primary font-medium">{currentModel.name}</div>
+              <div className="text-xs text-dim mt-0.5">
                 {currentModel.provider} · {currentModel.id}
               </div>
             </div>
@@ -280,10 +280,10 @@ function ModelSelector(): React.JSX.Element {
           <div className="max-h-64 overflow-y-auto py-1">
             {loading ? (
               <div className="flex items-center justify-center py-4">
-                <Loader2 size={16} className="animate-spin text-neutral-500" />
+                <Loader2 size={16} className="animate-spin text-dim" />
               </div>
             ) : models.length === 0 ? (
-              <div className="px-3 py-4 text-center text-xs text-neutral-600">
+              <div className="px-3 py-4 text-center text-xs text-faint">
                 No models available
               </div>
             ) : (
@@ -292,18 +292,18 @@ function ModelSelector(): React.JSX.Element {
                   key={`${model.provider}/${model.id}`}
                   onClick={() => handleSelect(model)}
                   className={clsx(
-                    'flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-neutral-800 transition-colors',
-                    currentModel?.id === model.id && 'bg-neutral-800'
+                    'flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-surface-hover transition-colors',
+                    currentModel?.id === model.id && 'bg-card'
                   )}
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-neutral-200">{model.name}</span>
+                      <span className="text-sm text-primary">{model.name}</span>
                       {currentModel?.id === model.id && (
-                        <Check size={12} className="text-emerald-400 shrink-0" />
+                        <Check size={12} className="text-success shrink-0" />
                       )}
                     </div>
-                    <div className="text-[10px] text-neutral-600 mt-0.5">
+                    <div className="text-[10px] text-faint mt-0.5">
                       {model.provider} · ctx: {(model.contextWindow / 1000).toFixed(0)}k
                       {model.reasoning && ' · reasoning'}
                     </div>
@@ -314,11 +314,11 @@ function ModelSelector(): React.JSX.Element {
           </div>
 
           {/* Footer */}
-          <div className="border-t border-neutral-800 px-3 py-1.5 flex items-center justify-between">
-            <span className="text-[10px] text-neutral-600">Ctrl+P to cycle</span>
+          <div className="border-t border-border px-3 py-1.5 flex items-center justify-between">
+            <span className="text-[10px] text-faint">Ctrl+P to cycle</span>
             <button
               onClick={() => setIsOpen(false)}
-              className="text-[10px] text-neutral-600 hover:text-neutral-400"
+              className="text-[10px] text-faint hover:text-muted"
             >
               Close
             </button>
@@ -362,7 +362,7 @@ function ThinkingLevelSelector(): React.JSX.Element {
     <div ref={ref} className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1 text-neutral-500 hover:text-neutral-300 transition-colors"
+        className="flex items-center gap-1 text-dim hover:text-secondary transition-colors"
         title="Thinking level"
       >
         <Zap size={10} />
@@ -370,7 +370,7 @@ function ThinkingLevelSelector(): React.JSX.Element {
       </button>
 
       {isOpen && (
-        <div className="absolute bottom-full right-0 mb-1 w-32 rounded-lg border border-neutral-700 bg-neutral-900 shadow-xl shadow-black/40 py-1 animate-fade-in z-50">
+        <div className="absolute bottom-full right-0 mb-1 w-32 rounded-lg border border-border-strong bg-surface shadow-xl shadow-black/40 py-1 animate-fade-in z-50">
           {levels.map((level) => (
             <button
               key={level}
@@ -379,13 +379,13 @@ function ThinkingLevelSelector(): React.JSX.Element {
                 setIsOpen(false)
               }}
               className={clsx(
-                'flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-neutral-800 transition-colors',
+                'flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-surface-hover transition-colors',
                 currentLevel === level
-                  ? 'text-neutral-200'
-                  : 'text-neutral-400'
+                  ? 'text-primary'
+                  : 'text-muted'
               )}
             >
-              {currentLevel === level && <Check size={10} className="text-emerald-400" />}
+              {currentLevel === level && <Check size={10} className="text-success" />}
               <span className={currentLevel === level ? '' : 'ml-[18px]'}>{level}</span>
             </button>
           ))}

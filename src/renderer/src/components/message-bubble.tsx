@@ -211,7 +211,7 @@ function UserMessage({
             ref={editRef}
             value={editContent}
             onChange={(e) => onEditContentChange(e.target.value)}
-            className="font-chat w-full rounded-2xl rounded-br-md bg-neutral-800 px-4 py-2.5 text-sm text-neutral-200 resize-none min-h-[40px] max-h-48 outline-none"
+            className="font-chat w-full rounded-2xl rounded-br-md bg-card px-4 py-2.5 text-sm text-primary resize-none min-h-[40px] max-h-48 outline-none"
             rows={1}
             onInput={(e) => {
               const t = e.currentTarget
@@ -223,13 +223,13 @@ function UserMessage({
           <div className="flex items-center justify-end gap-1 mt-1">
             <button
               onClick={onCancelEdit}
-              className="rounded px-2 py-1 text-xs text-neutral-400 hover:text-neutral-200 transition-colors"
+              className="rounded px-2 py-1 text-xs text-muted hover:text-primary transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={onSaveEdit}
-              className="flex items-center gap-1 rounded bg-blue-500 px-2 py-1 text-xs text-white hover:bg-blue-400 transition-colors"
+              className="flex items-center gap-1 rounded bg-accent px-2 py-1 text-xs text-white hover:bg-accent-hover transition-colors"
             >
               <Send size={10} />
               Send
@@ -243,7 +243,7 @@ function UserMessage({
   return (
     <div className="group mb-4 flex justify-end animate-fade-in">
       <div className="relative max-w-[80%]">
-        <div className="rounded-2xl rounded-br-md bg-neutral-800 px-4 py-2.5 text-sm text-neutral-200">
+        <div className="rounded-2xl rounded-br-md bg-card px-4 py-2.5 text-sm text-primary">
           {message.attachments && message.attachments.length > 0 && (
             <div className={clsx('flex flex-wrap gap-2', message.content && 'mb-2')}>
               {message.attachments.map((attachment, index) => (
@@ -353,7 +353,7 @@ function AssistantMessage({
         <div className="flex h-7 items-center gap-1">
           <button
             onClick={onToggleThinking}
-            className="flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-400 transition-colors"
+            className="flex items-center gap-1 text-sm text-dim hover:text-muted transition-colors"
           >
             <Brain size={12} />
             {showThinking ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -362,7 +362,7 @@ function AssistantMessage({
           <CopyButton text={message.thinking!} className="thinking-copy-btn" />
         </div>
         {showThinking && (
-          <div className="markdown-body font-sans italic text-sm text-neutral-400">
+          <div className="markdown-body font-sans italic text-sm text-muted">
             <MarkdownRenderer content={message.thinking!} />
           </div>
         )}
@@ -374,21 +374,21 @@ function AssistantMessage({
             the thinking block tucked under it. */}
         {showModelHeader && (
           <div className="flex items-start gap-3">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-800">
-              <Bot size={14} className="text-neutral-400" />
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-card">
+              <Bot size={14} className="text-muted" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex h-7 items-center gap-2 text-sm text-neutral-500">
+              <div className="flex h-7 items-center gap-2 text-sm text-dim">
                 <span>{message.provider}</span>
-                <span className="text-neutral-700">·</span>
+                <span className="text-ghost">·</span>
                 <span>{modelDisplayName(message.model!, customModels)}</span>
                 {message.cost !== undefined && (
                   <>
-                    <span className="text-neutral-700">·</span>
+                    <span className="text-ghost">·</span>
                     <span>${message.cost.toFixed(4)}</span>
                   </>
                 )}
-                <span className="text-neutral-700">·</span>
+                <span className="text-ghost">·</span>
                 <RelativeTime timestamp={message.timestamp} />
               </div>
               {thinkingBlock && <div className="mt-2">{thinkingBlock}</div>}
@@ -415,8 +415,8 @@ function AssistantMessage({
               <div key={tc.id} className="flex items-start gap-3">
                 {/* Center the icon on the box's header row (h-8 ≈ py-2 + text-xs). */}
                 <div className="flex h-8 w-7 shrink-0 items-center justify-center">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-800">
-                    <RowIcon size={14} className="text-neutral-500" />
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-card">
+                    <RowIcon size={14} className="text-dim" />
                   </div>
                 </div>
                 <div className="min-w-0 flex-1">
@@ -440,8 +440,8 @@ function AssistantMessage({
         {hideModelHeader ? (
           <div className="h-7 w-7 shrink-0" />
         ) : (
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-800">
-            <Bot size={14} className="text-neutral-400" />
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-card">
+            <Bot size={14} className="text-muted" />
           </div>
         )}
 
@@ -449,17 +449,17 @@ function AssistantMessage({
         <div className="min-w-0 flex-1">
           {/* Model info */}
           {showModelHeader && (
-            <div className="flex h-7 items-center gap-2 text-sm text-neutral-500">
+            <div className="flex h-7 items-center gap-2 text-sm text-dim">
               <span>{message.provider}</span>
-              <span className="text-neutral-700">·</span>
+              <span className="text-ghost">·</span>
               <span>{modelDisplayName(message.model!, customModels)}</span>
               {message.cost !== undefined && (
                 <>
-                  <span className="text-neutral-700">·</span>
+                  <span className="text-ghost">·</span>
                   <span>${message.cost.toFixed(4)}</span>
                 </>
               )}
-              <span className="text-neutral-700">·</span>
+              <span className="text-ghost">·</span>
               <RelativeTime timestamp={message.timestamp} />
             </div>
           )}
@@ -478,7 +478,7 @@ function AssistantMessage({
               <div className="flex h-7 items-center gap-1">
                 <button
                   onClick={onToggleThinking}
-                  className="flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-400 transition-colors"
+                  className="flex items-center gap-1 text-sm text-dim hover:text-muted transition-colors"
                 >
                   <Brain size={12} />
                   {showThinking ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -487,7 +487,7 @@ function AssistantMessage({
                 <CopyButton text={message.thinking} className="thinking-copy-btn" />
               </div>
               {showThinking && (
-                <div className="markdown-body font-sans italic text-sm text-neutral-400">
+                <div className="markdown-body font-sans italic text-sm text-muted">
                   <MarkdownRenderer content={message.thinking} />
                 </div>
               )}
@@ -573,34 +573,34 @@ function ToolCallBadge({
   const editLang = editFile ? getCodeEditorLanguageName(editFile) : 'plain text'
 
   return (
-    <div className="relative rounded-lg border border-neutral-800 bg-neutral-900/50">
+    <div className="relative rounded-lg border border-border bg-surface/50">
       <CopyButton text={toolCallCopyText(toolCall)} className="absolute right-1.5 top-1.5" />
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-2 py-2 pl-3 pr-9 text-xs text-neutral-400 hover:text-neutral-300 transition-colors"
+        className="flex w-full items-center gap-2 py-2 pl-3 pr-9 text-xs text-muted hover:text-secondary transition-colors"
       >
         <span className="font-jetbrains min-w-0 truncate">
           {toolCallLabel(toolCall.name, toolCall.arguments)}
         </span>
         {stats && (
           <span className="shrink-0 font-jetbrains">
-            <span className="text-green-400">+{stats.added}</span>{' '}
-            <span className="text-red-400">-{stats.removed}</span>
+            <span className="text-success">+{stats.added}</span>{' '}
+            <span className="text-error">-{stats.removed}</span>
           </span>
         )}
         {toolCall.durationMs !== undefined && !toolCall.isExecuting && (
-          <span className="shrink-0 text-neutral-600">{formatDuration(toolCall.durationMs)}</span>
+          <span className="shrink-0 text-faint">{formatDuration(toolCall.durationMs)}</span>
         )}
         {toolCall.isError !== undefined && (
           <span className={clsx(
             'rounded px-1.5 py-0.5',
-            toolCall.isError ? 'bg-red-900/30 text-red-400' : 'bg-emerald-900/30 text-emerald-400'
+            toolCall.isError ? 'bg-error-bg text-error' : 'bg-success-bg text-success'
           )}>
             {toolCall.isError ? 'error' : 'done'}
           </span>
         )}
         {toolCall.isExecuting && (
-          <span className="text-yellow-500 animate-pulse">running</span>
+          <span className="text-warning animate-pulse">running</span>
         )}
         {expanded ? (
           <ChevronDown size={12} className="ml-auto shrink-0" />
@@ -609,17 +609,17 @@ function ToolCallBadge({
         )}
       </button>
       {expanded && (
-        <div className="border-t border-neutral-800 px-3 py-2">
+        <div className="border-t border-border px-3 py-2">
           {edits ? (
             <EditDiff blocks={edits} lang={editLang} />
           ) : (
-            <pre className="font-jetbrains overflow-x-auto text-xs text-neutral-500">
+            <pre className="font-jetbrains overflow-x-auto text-xs text-dim">
               {formatToolCallArgs(toolCall.arguments)}
             </pre>
           )}
           {toolCall.result && (
-            <div className="mt-2 border-t border-neutral-800 pt-2">
-              <pre className="font-jetbrains overflow-x-auto text-xs text-neutral-400">
+            <div className="mt-2 border-t border-border pt-2">
+              <pre className="font-jetbrains overflow-x-auto text-xs text-muted">
                 {toolCall.result}
               </pre>
             </div>
@@ -635,9 +635,9 @@ function ToolCallBadge({
 // block replacement, not a line-level diff — enough to read the change at a glance.
 function EditDiff({ blocks, lang }: { blocks: EditBlock[]; lang: string }): React.JSX.Element {
   return (
-    <div className="overflow-x-auto font-jetbrains text-xs leading-relaxed text-neutral-300">
+    <div className="overflow-x-auto font-jetbrains text-xs leading-relaxed text-secondary">
       {blocks.map((b, i) => (
-        <div key={i} className={i > 0 ? 'mt-2 border-t border-neutral-800 pt-2' : ''}>
+        <div key={i} className={i > 0 ? 'mt-2 border-t border-border pt-2' : ''}>
           <DiffLines text={b.oldText} lang={lang} kind="remove" />
           <DiffLines text={b.newText} lang={lang} kind="add" />
         </div>
@@ -661,8 +661,8 @@ function DiffLines({
   if (text === '') return null
   const html = highlightCodeToHtml(text, lang)
   const lines = (html ?? text).split('\n')
-  const rowBg = kind === 'add' ? 'bg-green-950/30' : 'bg-red-950/30'
-  const markColor = kind === 'add' ? 'text-green-400' : 'text-red-400'
+  const rowBg = kind === 'add' ? 'bg-success-bg' : 'bg-error-bg'
+  const markColor = kind === 'add' ? 'text-success' : 'text-error'
   const sign = kind === 'add' ? '+ ' : '- '
   return (
     <>
@@ -711,11 +711,11 @@ function ToolResultMessage({ message }: { message: DisplayMessage }): React.JSX.
             keeps the result box left-aligned with the tool-call box above it. */}
         <div className="w-7 shrink-0" />
         <div className="min-w-0 flex-1">
-          <div className="relative rounded-lg border border-neutral-800 bg-neutral-900/50">
+          <div className="relative rounded-lg border border-border bg-surface/50">
             <CopyButton text={message.content} className="absolute right-1.5 top-1.5" />
             {!expandable ? (
               // Single line of content — nothing to expand, so no chevron.
-              <div className="flex w-full items-center py-2 pl-3 pr-9 text-xs text-neutral-400">
+              <div className="flex w-full items-center py-2 pl-3 pr-9 text-xs text-muted">
                 <span className="font-jetbrains min-w-0 flex-1 truncate text-left">{firstLine}</span>
               </div>
             ) : expanded && isCode ? (
@@ -724,7 +724,7 @@ function ToolResultMessage({ message }: { message: DisplayMessage }): React.JSX.
               // code sits flush at the top.
               <button
                 onClick={() => setExpanded(false)}
-                className="absolute right-8 top-1.5 rounded p-1 text-neutral-500 transition-colors hover:text-neutral-300"
+                className="absolute right-8 top-1.5 rounded p-1 text-dim transition-colors hover:text-secondary"
                 title="Collapse"
                 aria-label="Collapse"
               >
@@ -733,7 +733,7 @@ function ToolResultMessage({ message }: { message: DisplayMessage }): React.JSX.
             ) : (
               <button
                 onClick={() => setExpanded(!expanded)}
-                className="flex w-full items-center gap-2 py-2 pl-3 pr-9 text-xs text-neutral-400 hover:text-neutral-300 transition-colors"
+                className="flex w-full items-center gap-2 py-2 pl-3 pr-9 text-xs text-muted hover:text-secondary transition-colors"
               >
                 <span className="font-jetbrains min-w-0 flex-1 truncate text-left">{firstLine}</span>
                 {expanded ? (
@@ -756,7 +756,7 @@ function ToolResultMessage({ message }: { message: DisplayMessage }): React.JSX.
               ) : (
                 rest.trim() && (
                   <div className="px-3 pb-2">
-                    <pre className="font-jetbrains overflow-x-auto text-xs text-neutral-400">
+                    <pre className="font-jetbrains overflow-x-auto text-xs text-muted">
                       {rest.slice(0, 2000)}
                       {rest.length > 2000 && '\n…'}
                     </pre>
@@ -794,10 +794,10 @@ function CodeResultView({
   return (
     // The first line doubles as a collapse trigger (a large click target, like the
     // collapsed header). A drag to select text isn't a click, so selection works.
-    <div className="overflow-x-auto font-jetbrains text-xs leading-relaxed text-neutral-300">
+    <div className="overflow-x-auto font-jetbrains text-xs leading-relaxed text-secondary">
       <LineNumberedCode content={code} lang={lang} onFirstLineClick={onCollapse} />
-      {note && <div className="mt-2 italic text-neutral-500">{note}</div>}
-      {clipped && <div className="mt-1 text-neutral-600">…</div>}
+      {note && <div className="mt-2 italic text-dim">{note}</div>}
+      {clipped && <div className="mt-1 text-faint">…</div>}
     </div>
   )
 }
@@ -844,18 +844,18 @@ function ToolGroupBubbleImpl({
       <div className="flex items-start gap-3">
         {/* Bot avatar + model header so a grouped run reads like any other
             assistant message, not a distinct kind of block. */}
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-800">
-          <Bot size={14} className="text-neutral-400" />
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-card">
+          <Bot size={14} className="text-muted" />
         </div>
         <div className="min-w-0 flex-1">
           {showSharedHeader && (
-            <div className="flex h-7 items-center gap-2 text-sm text-neutral-500">
+            <div className="flex h-7 items-center gap-2 text-sm text-dim">
               <span>{sharedProvider}</span>
-              <span className="text-neutral-700">·</span>
+              <span className="text-ghost">·</span>
               <span>{modelDisplayName(sharedModel as string, customModels)}</span>
               {groupTimestamp !== undefined && (
                 <>
-                  <span className="text-neutral-700">·</span>
+                  <span className="text-ghost">·</span>
                   <RelativeTime timestamp={groupTimestamp} />
                 </>
               )}
@@ -863,14 +863,14 @@ function ToolGroupBubbleImpl({
           )}
           <div
             className={clsx(
-              'relative rounded-lg border border-neutral-800 bg-neutral-900/50',
+              'relative rounded-lg border border-border bg-surface/50',
               showSharedHeader && 'mt-1.5'
             )}
           >
             <CopyButton text={groupCopyText(messages)} className="absolute right-1.5 top-1.5" />
             <button
               onClick={() => setExpanded(!expanded)}
-              className="flex w-full items-center gap-2 py-2 pl-3 pr-9 text-xs text-neutral-400 hover:text-neutral-300 transition-colors"
+              className="flex w-full items-center gap-2 py-2 pl-3 pr-9 text-xs text-muted hover:text-secondary transition-colors"
             >
               <span className="font-jetbrains">{title}</span>
               {expanded ? (
@@ -911,7 +911,7 @@ export const ToolGroupBubble = memo(ToolGroupBubbleImpl)
 function SystemMessage({ message }: { message: DisplayMessage }): React.JSX.Element {
   return (
     <div className="mb-4 flex justify-center animate-fade-in">
-      <div className="rounded-full bg-neutral-900 px-3 py-1 text-xs text-neutral-500">
+      <div className="rounded-full bg-surface px-3 py-1 text-xs text-dim">
         {message.content}
       </div>
     </div>
@@ -934,7 +934,7 @@ function ActionButton({
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-1 rounded px-1.5 py-1 text-xs text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300 transition-colors"
+      className="flex items-center gap-1 rounded px-1.5 py-1 text-xs text-dim hover:bg-surface-hover hover:text-secondary transition-colors"
       title={title}
       aria-label={title}
     >

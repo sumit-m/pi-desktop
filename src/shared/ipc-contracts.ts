@@ -52,7 +52,6 @@ export const IPC_CHANNELS = {
   // Settings
   SETTINGS_GET_ALL: 'settings:get-all',
   SETTINGS_SAVE: 'settings:save',
-  SETTINGS_GET_THEME: 'settings:get-theme',
 
   // UI
   UI_SELECT_RESPONSE: 'ui:select-response',
@@ -137,6 +136,15 @@ export const IPC_CHANNELS = {
   NOTES_CREATE: 'notes:create',
   NOTES_UPDATE: 'notes:update',
   NOTES_REMOVE: 'notes:remove',
+
+  // Themes (user-created theme storage)
+  THEMES_LIST: 'themes:list',
+  THEMES_SAVE: 'themes:save',
+  THEMES_DELETE: 'themes:delete',
+  THEMES_INSTALL_URL: 'themes:install-from-url',
+  THEMES_EXPORT: 'themes:export',
+  THEMES_IMPORT: 'themes:import',
+  THEMES_GALLERY_LIST: 'themes:gallery-list',
 
   // Events (main → renderer)
   EVENT_PI: 'event:pi',
@@ -660,7 +668,7 @@ export type PermissionMode = 'plan-readonly' | 'ask-edits' | 'ask-commands' | 't
 export interface AppSettings {
   piExecutablePath: string
   defaultArgs: string[]
-  theme: 'dark' | 'light' | 'system' | 'nord' | 'gruvbox' | 'breeze-dark' | 'breeze-light' | 'breeze-claudius'
+  theme: string // 'system' or a theme id (built-in or user theme)
   defaultModel: string | null
   defaultProvider: string | null
   defaultCwd: string | null
@@ -751,6 +759,53 @@ export interface NoteInput {
 
 /** Mutable fields when updating a note. */
 export type NoteUpdate = Partial<NoteInput>
+
+// ─── Theme Types ────────────────────────────────────────────────────────────
+
+import type { ThemeFile } from './theme/theme-file'
+
+/** A user-created theme as stored on disk, keyed by its file-derived id. */
+export interface UserThemeRecord {
+  id: string
+  file: ThemeFile
+}
+
+/** Result of listing user themes; `warnings` reports files that failed validation. */
+export interface ThemesListResult {
+  themes: UserThemeRecord[]
+  warnings: string[]
+}
+
+/**
+ * Result of an operation that produces (or fails to produce) a saved theme:
+ * installing from a URL, or importing from a file. `canceled` distinguishes a
+ * user-initiated dialog cancellation from a genuine error.
+ */
+export type ThemeImportResult =
+  | { ok: true; theme: UserThemeRecord }
+  | { ok: false; error: string }
+  | { ok: false; canceled: true }
+
+export type ThemeExportResult =
+  | { ok: true }
+  | { ok: false; error: string }
+  | { ok: false; canceled: true }
+
+export interface GalleryTheme {
+  name: string
+  kind: 'dark' | 'light'
+  url: string
+  author?: string
+  description?: string
+  // Full validated theme content embedded in the gallery index, used to
+  // render a live preview card without fetching each theme file. Absent when
+  // the index predates embedding; the card then renders without a preview.
+  theme?: ThemeFile
+}
+
+export type ThemeGalleryResult =
+  | { ok: true; themes: GalleryTheme[] }
+  | { ok: false; error: string }
 
 // ─── Package Types ──────────────────────────────────────────────────────────
 

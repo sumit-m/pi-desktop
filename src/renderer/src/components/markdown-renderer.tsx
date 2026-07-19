@@ -19,7 +19,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps): React.JSX.
 
   return (
     <ErrorBoundary
-      fallback={<pre className="whitespace-pre-wrap break-words text-neutral-300">{content}</pre>}
+      fallback={<pre className="whitespace-pre-wrap break-words text-secondary">{content}</pre>}
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
@@ -40,7 +40,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps): React.JSX.
                   show(e, buildLinkContextMenu(href))
                 }
               }}
-              className="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
+              className="text-accent-fg hover:underline cursor-pointer"
             >
               {children}
             </a>
@@ -94,7 +94,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps): React.JSX.
               return (
                 <code className={className}>
                   <LineNumberedCode content={codeBody} lang={lang} />
-                  {note && <div className="mt-2 text-xs italic text-neutral-500">{note}</div>}
+                  {note && <div className="mt-2 text-xs italic text-dim">{note}</div>}
                 </code>
               )
             }
@@ -171,14 +171,14 @@ function SvgBlock({ raw }: { raw: string }): React.JSX.Element {
   const src = `data:image/svg+xml;utf8,${encodeURIComponent(raw)}`
 
   return (
-    <div className="relative my-2 overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900/50">
-      <div className="flex items-center justify-between border-b border-neutral-800 px-2 py-1">
+    <div className="relative my-2 overflow-hidden rounded-lg border border-border bg-surface/50">
+      <div className="flex items-center justify-between border-b border-border px-2 py-1">
         <div className="flex items-center gap-0.5">
           <button
             onClick={() => setShowSource(true)}
             className={clsx(
               'rounded p-1 transition-colors',
-              showSource ? 'bg-neutral-800 text-neutral-200' : 'text-neutral-500 hover:bg-neutral-800/50 hover:text-neutral-300'
+              showSource ? 'bg-card text-primary' : 'text-dim hover:bg-surface-hover/50 hover:text-secondary'
             )}
             title="View source"
             aria-label="View source"
@@ -189,7 +189,7 @@ function SvgBlock({ raw }: { raw: string }): React.JSX.Element {
             onClick={() => setShowSource(false)}
             className={clsx(
               'rounded p-1 transition-colors',
-              !showSource ? 'bg-neutral-800 text-neutral-200' : 'text-neutral-500 hover:bg-neutral-800/50 hover:text-neutral-300'
+              !showSource ? 'bg-card text-primary' : 'text-dim hover:bg-surface-hover/50 hover:text-secondary'
             )}
             title="Render SVG"
             aria-label="Render SVG"
