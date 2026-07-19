@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   listUserThemes, saveUserTheme, deleteUserTheme, installThemeFromUrl, fetchGalleryThemes,
+  fetchGalleryImage,
 } from './theme-store'
 import { THEME_SCHEMA_V1, type ThemeFile } from '../shared/theme/theme-file'
 
@@ -377,4 +378,45 @@ test('fetchGalleryThemes rejects a non-array index and a failed fetch', async ()
   await assert.rejects(fetchGalleryThemes(jsonFetch({ not: 'an array' })), /not a JSON array/)
   const failFetch = (async () => new Response('', { status: 500 })) as typeof fetch
   await assert.rejects(fetchGalleryThemes(failFetch), /gallery index download failed: 500/)
+})
+
+const GALLERY_BASE = 'https://raw.githubusercontent.com/FaqFirebase/pi-desktop-themes/main'
+
+test('fetchGalleryThemes exposes a valid screenshot URL, ignores a bad one', async () => {
+  const themes = await fetchGalleryThemes(jsonFetch([
+    { name: 'Shot', kind: 'dark', file: 'themes/shot/theme.json', screenshot: 'themes/shot/screenshot.png' },
+    { name: 'Bad', kind: 'dark', file: 'themes/bad/theme.json', screenshot: 'themes/bad/../evil.png' },
+    { name: 'None', kind: 'dark', file: 'themes/none/theme.json' },
+  ]))
+  assert.equal(themes[0].screenshotUrl, `${GALLERY_BASE}/themes/shot/screenshot.png`)
+  assert.equal(themes[1].screenshotUrl, undefined)
+  assert.equal(themes[2].screenshotUrl, undefined)
+})
+
+test('fetchGalleryImage pins the URL and requires an image response', async () => {
+  const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47])
+  const imgFetch = (async () =>
+    new Response(pngBytes, { status: 200, headers: { 'content-type': 'image/png' } })) as typeof fetch
+  const good = `${GALLERY_BASE}/themes/shot/screenshot.png`
+  const { dataUri } = await fetchGalleryImage(good, imgFetch)
+  assert.match(dataUri, /^data:image\/png;base64,/)
+
+  // Off-gallery host is rejected before any fetch.
+  await assert.rejects(
+    fetchGalleryImage('https://evil.example.com/x.png', imgFetch), /not an allowed gallery path/)
+  // Right host, but not a screenshot path.
+  await assert.rejects(
+    fetchGalleryImage(`${GALLERY_BASE}/themes/shot/theme.json`, imgFetch), /not an allowed gallery path/)
+  // Right path, but the response is not an image.
+  const htmlFetch = (async () =>
+    new Response('<html>', { status: 200, headers: { 'content-type': 'text/html' } })) as typeof fetch
+  await assert.rejects(fetchGalleryImage(good, htmlFetch), /not an image/)
+})
+
+test('fetchGalleryImage caps oversized screenshots', async () => {
+  const huge = new Uint8Array(3 * 1024 * 1024)
+  const hugeFetch = (async () =>
+    new Response(huge, { status: 200, headers: { 'content-type': 'image/png' } })) as typeof fetch
+  await assert.rejects(
+    fetchGalleryImage(`${GALLERY_BASE}/themes/shot/screenshot.png`, hugeFetch), /too large/)
 })

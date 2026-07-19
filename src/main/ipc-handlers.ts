@@ -7,7 +7,7 @@ import { TerminalService } from './terminal-service'
 import { NotesManager } from './notes-manager'
 import { getGuiDataPath, getGuiDataDir } from './app-data-paths'
 import { getSessionsRoot } from './pi-paths'
-import { listUserThemes, saveUserTheme, deleteUserTheme, installThemeFromUrl, fetchGalleryThemes } from './theme-store'
+import { listUserThemes, saveUserTheme, deleteUserTheme, installThemeFromUrl, fetchGalleryThemes, fetchGalleryImage } from './theme-store'
 import {
   validateThemeFile, themeIdFromName, MAX_THEME_FILE_BYTES, type ThemeFile,
 } from '../shared/theme/theme-file'
@@ -40,6 +40,7 @@ import type {
   ThemeImportResult,
   ThemeExportResult,
   ThemeGalleryResult,
+  ThemeGalleryImageResult,
 } from '../shared/ipc-contracts'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 import { COUNCIL_AGENT_IDS, clampTimeoutSeconds } from '../shared/council-config'
@@ -740,6 +741,16 @@ export function registerIpcHandlers(workspaceManager: WorkspaceManager): void {
     try {
       const themes = await fetchGalleryThemes()
       return { ok: true, themes }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.THEMES_GALLERY_IMAGE, async (_event, url: unknown): Promise<ThemeGalleryImageResult> => {
+    if (!isString(url)) return { ok: false, error: 'url must be a string' }
+    try {
+      const { dataUri } = await fetchGalleryImage(url)
+      return { ok: true, dataUri }
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) }
     }

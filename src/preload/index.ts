@@ -39,6 +39,7 @@ import type {
   ThemeImportResult,
   ThemeExportResult,
   ThemeGalleryResult,
+  ThemeGalleryImageResult,
 } from '../shared/ipc-contracts'
 import type { ThemeFile } from '../shared/theme/theme-file'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
@@ -114,6 +115,7 @@ interface PiDesktopAPI {
     export(file: ThemeFile): Promise<ThemeExportResult>
     import(): Promise<ThemeImportResult>
     gallery(): Promise<ThemeGalleryResult>
+    galleryImage(url: string): Promise<ThemeGalleryImageResult>
   }
 
   // Workspace management
@@ -301,6 +303,7 @@ const api: PiDesktopAPI = {
     export: (file) => ipcRenderer.invoke(IPC_CHANNELS.THEMES_EXPORT, file),
     import: () => ipcRenderer.invoke(IPC_CHANNELS.THEMES_IMPORT),
     gallery: () => ipcRenderer.invoke(IPC_CHANNELS.THEMES_GALLERY_LIST),
+    galleryImage: (url) => ipcRenderer.invoke(IPC_CHANNELS.THEMES_GALLERY_IMAGE, url),
   },
 
   workspace: {

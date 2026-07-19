@@ -362,6 +362,11 @@ const MAX_GALLERY_INDEX_BYTES = 1048576
 // class has no '.', '/' or '\', so neither form can smuggle traversal or an
 // absolute/other-host URL into the pinned base join.
 const GALLERY_FILE_PATH = /^themes\/[a-z0-9-]+(?:\/theme)?\.json$/
+// An optional author screenshot lives beside the theme file. Only these exact
+// shapes are ever fetched, so a poisoned index can at most reference an image
+// already committed under themes/<slug>/ in the pinned repo.
+const GALLERY_SCREENSHOT_PATH = /^themes\/[a-z0-9-]+\/screenshot\.(?:png|jpe?g|webp)$/
+const MAX_GALLERY_IMAGE_BYTES = 2097152
 
 // Untrusted display string from the gallery index: usable only when it is a
 // non-empty string within the cap; anything else is treated as absent.
@@ -407,7 +412,65 @@ export async function fetchGalleryThemes(fetchFn: typeof fetch = fetch): Promise
       ?? displayText(author, MAX_THEME_AUTHOR_LENGTH)
     galleryTheme.description = embedded?.description
       ?? displayText(description, MAX_THEME_DESCRIPTION_LENGTH)
+    const { screenshot } = entry as Record<string, unknown>
+    if (typeof screenshot === 'string' && GALLERY_SCREENSHOT_PATH.test(screenshot)) {
+      galleryTheme.screenshotUrl = `${GALLERY_RAW_BASE}/${screenshot}`
+    }
     themes.push(galleryTheme)
   }
   return themes
+}
+
+// Reads a response body as bytes, aborting once the cap is exceeded — the
+// binary counterpart of readCappedText, for screenshots.
+async function readCappedBytes(response: Response, limitBytes: number): Promise<Uint8Array> {
+  const reader = response.body?.getReader()
+  if (!reader) {
+    const buffer = new Uint8Array(await response.arrayBuffer())
+    if (buffer.byteLength > limitBytes) {
+      throw new Error(`screenshot too large (limit ${limitBytes} bytes)`)
+    }
+    return buffer
+  }
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > limitBytes) {
+      await reader.cancel()
+      throw new Error(`screenshot too large (limit ${limitBytes} bytes)`)
+    }
+    chunks.push(value)
+  }
+  const out = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    out.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return out
+}
+
+// Fetches an author screenshot and returns it as a data: URI (the renderer's
+// CSP allows data: images but not remote hosts, so the fetch must happen here).
+// The URL is re-pinned to the gallery base + screenshot path even though it
+// was built here, and the response must actually be an image — the renderer
+// hands the URL back over IPC, so it is treated as untrusted on the way in.
+export async function fetchGalleryImage(
+  url: string, fetchFn: typeof fetch = fetch,
+): Promise<{ dataUri: string }> {
+  const prefix = `${GALLERY_RAW_BASE}/`
+  if (!url.startsWith(prefix) || !GALLERY_SCREENSHOT_PATH.test(url.slice(prefix.length))) {
+    throw new Error('screenshot URL is not an allowed gallery path')
+  }
+  const response = await guardedFetch(url, fetchFn)
+  if (!response.ok) throw new Error(`screenshot download failed: ${response.status}`)
+  const contentType = response.headers.get('content-type') ?? ''
+  if (!contentType.startsWith('image/')) {
+    throw new Error(`screenshot is not an image (content-type: ${contentType || 'none'})`)
+  }
+  const bytes = await readCappedBytes(response, MAX_GALLERY_IMAGE_BYTES)
+  return { dataUri: `data:${contentType};base64,${Buffer.from(bytes).toString('base64')}` }
 }

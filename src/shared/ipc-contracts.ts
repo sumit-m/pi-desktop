@@ -145,6 +145,7 @@ export const IPC_CHANNELS = {
   THEMES_EXPORT: 'themes:export',
   THEMES_IMPORT: 'themes:import',
   THEMES_GALLERY_LIST: 'themes:gallery-list',
+  THEMES_GALLERY_IMAGE: 'themes:gallery-image',
 
   // Events (main → renderer)
   EVENT_PI: 'event:pi',
@@ -801,10 +802,18 @@ export interface GalleryTheme {
   // render a live preview card without fetching each theme file. Absent when
   // the index predates embedding; the card then renders without a preview.
   theme?: ThemeFile
+  // Optional author-provided screenshot URL (pinned to the gallery repo). The
+  // renderer fetches it lazily via THEMES_GALLERY_IMAGE, which returns a data
+  // URI (the renderer CSP forbids remote images).
+  screenshotUrl?: string
 }
 
 export type ThemeGalleryResult =
   | { ok: true; themes: GalleryTheme[] }
+  | { ok: false; error: string }
+
+export type ThemeGalleryImageResult =
+  | { ok: true; dataUri: string }
   | { ok: false; error: string }
 
 // ─── Package Types ──────────────────────────────────────────────────────────
